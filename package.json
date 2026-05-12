@@ -14,7 +14,10 @@
     "vite": "^8.0.12"
   },
   "dependencies": {
+    "@fontsource/kosugi-maru": "^5.2.8",
+    "@fontsource/noto-sans-jp": "^5.2.9",
     "textalive-app-api": "^0.4.0",
-    "three": "^0.184.0"
+    "three": "^0.184.0",
+    "troika-three-text": "^0.52.4"
   }
 }
