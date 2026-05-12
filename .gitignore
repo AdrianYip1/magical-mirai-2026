@@ -27,9 +27,11 @@ CLAUDE.local.md
 # Docs (planning files, not for submission)
 docs/
 
-# Large font files
+# Large font files — download separately, see README
 public/*.otf
 public/*.ttf
+public/*.typeface.json
+public/*.woff2
 
 # Editor
 .vscode/*

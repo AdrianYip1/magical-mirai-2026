@@ -1,21 +1,15 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { Text } from 'troika-three-text';
-import { Player, IPlayerApp, IPhrase } from 'textalive-app-api';
+import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+import { FontLoader, Font } from 'three/addons/loaders/FontLoader.js';
+import { Player, IPlayerApp, IPhrase, IBeat } from 'textalive-app-api';
 import panelVert from './shaders/panel.vert.glsl?raw';
 import panelFrag from './shaders/panel.frag.glsl?raw';
 import cubeVert from './shaders/cube.vert.glsl?raw';
 import cubeFrag from './shaders/cube.frag.glsl?raw';
+import glassFrag from './shaders/glass.frag?raw';
+import { GlitchPass } from 'three/examples/jsm/Addons.js';
 
-const panelUniforms = {
-  uTime:          { value: 0.0 },
-  uBeatIntensity: { value: 0.0 },
-  color:          { value: new THREE.Color(0x00ffff) },
-};
-
-const cubeUniforms = {
-  color: { value: new THREE.Color(0x00ffff) },
-};
 
 // Renderer
 const canvas = document.createElement('canvas');
@@ -24,6 +18,11 @@ document.body.appendChild(canvas);
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
+
+const renderTarget = new THREE.WebGLRenderTarget(
+  window.innerWidth,
+  window.innerHeight
+);
 
 // Scene
 const scene = new THREE.Scene();
@@ -40,43 +39,99 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderTarget.setSize(window.innerWidth, window.innerHeight);
+  glassUniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
 });
 
-// Panel
-const panel = new THREE.Mesh(
-  new THREE.PlaneGeometry(4, 1),
+const panelUniforms = {
+  uTime:          { value: 0.0 },
+  uBeatIntensity: { value: 0.0 },
+  color:          { value: new THREE.Color(0x00ffff) },
+};
+
+const glassUniforms = {
+  uCameraPos: {value: camera.position},
+  uSceneTexture: {value : null as THREE.Texture | null},
+  uResolution: {value: new THREE.Vector2(window.innerWidth, window.innerHeight)},
+  uBeatIntensity: {value: 0.0},
+};
+
+const glass = new THREE.Mesh(
+  new THREE.PlaneGeometry(3, 3, 10),
   new THREE.ShaderMaterial({
-    vertexShader: panelVert,
-    fragmentShader: panelFrag,
-    uniforms: panelUniforms,
+    vertexShader: cubeVert,
+    fragmentShader: glassFrag,
+    uniforms: glassUniforms,
     transparent: true,
     side: THREE.DoubleSide,
   })
 );
-scene.add(panel);
+glass.scale.set(0.5, 0.5, 0.5);
+scene.add(glass);
 
-const cube = new THREE.Mesh(
-  new THREE.BoxGeometry(3, 3, 3, 1, 2, 3),
-  new THREE.ShaderMaterial({
-    vertexShader: cubeVert,
-    fragmentShader: cubeFrag,
-    uniforms: cubeUniforms,
-  })
-);
-cube.scale.set(0.1, 0.1, 0.1);
-scene.add(cube);
 
-// 3D lyric text @ origin
-const lyricText = new Text();
-lyricText.font = '/NotoSansJP-Bold.otf';
-lyricText.fontSize = 0.5;
-lyricText.color = 0xffffff;
-lyricText.anchorX = 'center';
-lyricText.anchorY = 'middle';
-lyricText.textAlign = 'center';
-lyricText.text = '';
-lyricText.sync();
-scene.add(lyricText);
+// 3D lyric text
+let loadedFont: Font | null = null;
+let lyricMesh: THREE.Mesh | null = null;
+
+const fontLoader = new FontLoader();
+fontLoader.load('/MPLUS1-Black.typeface.json', (font) => {
+  loadedFont = font;
+  console.log('[font] loaded');
+  if (currentPhrase) setLyric(currentPhrase.text);
+});
+
+function setLyric(text: string) {
+  if (!loadedFont) return;
+
+  // remove old mesh
+  if (lyricMesh) {
+    lyricMesh.geometry.dispose();
+    scene.remove(lyricMesh);
+  }
+
+  if (!text) {
+    lyricMesh = null;
+    return;
+  }
+
+  const geo = new TextGeometry(text, {
+    font: loadedFont,
+    size: 1.5,
+    depth: 0.2,
+    curveSegments: 40,
+    bevelEnabled: true,
+    bevelThickness: 0.04,
+    bevelSize: 0.03,
+    bevelSegments: 5,
+  });
+
+  // center the text around the origin
+  geo.computeBoundingBox();
+  const bb = geo.boundingBox!;
+  const offsetX = -(bb.max.x - bb.min.x) / 2;
+  const offsetY = -(bb.max.y - bb.min.y) / 2;
+  geo.translate(offsetX, offsetY, 0);
+
+  lyricMesh = new THREE.Mesh(
+    geo,
+    new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.3, roughness: 0.4 })
+  );
+  lyricMesh.position.z = 0.5;
+
+  // scale down if text is wider than 4 units
+  const width = bb.max.x - bb.min.x;
+  if (width > 4) lyricMesh.scale.setScalar(4 / width);
+
+  scene.add(lyricMesh);
+}
+
+// Lighting for MeshStandardMaterial
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+scene.add(ambientLight);
+const dirLight = new THREE.DirectionalLight(0x88ccff, 1.5);
+dirLight.position.set(2, 4, 3);
+scene.add(dirLight);
 
 // Animation loop
 const clock = new THREE.Clock();
@@ -84,9 +139,17 @@ const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
-  panel.rotation.y += 0.005;
-  cube.rotation.x += 0.001;
+  glassUniforms.uBeatIntensity.value *= 0.9;
   panelUniforms.uTime.value = clock.getElapsedTime();
+
+
+  glass.visible = false;
+  renderer.setRenderTarget(renderTarget);
+  renderer.render(scene, camera);
+
+  glass.visible = true;
+  renderer.setRenderTarget(null);
+  glassUniforms.uSceneTexture.value = renderTarget.texture;
   renderer.render(scene, camera);
 }
 animate();
@@ -104,6 +167,7 @@ const player = new Player({
 });
 
 let currentPhrase: IPhrase | null = null;
+let currentBeat: IBeat | null = null;
 
 player.addListener({
   onAppReady(app: IPlayerApp) {
@@ -132,12 +196,19 @@ player.addListener({
   onTimeUpdate(position: number) {
     if (!player.video) return;
 
+    // TODO: add an option for users to config offset (with a ui)
+    // function that syncs music with beat automatically if desync
+    const beat = player.findBeat(position);
+    if (beat != currentBeat) {
+      currentBeat = beat;
+      glassUniforms.uBeatIntensity.value = 1.0;
+    }
+
     const phrase = player.video.findPhrase(position);
     if (phrase !== currentPhrase) {
       currentPhrase = phrase;
-      lyricText.text = phrase ? phrase.text : '';
-      lyricText.sync();
-      console.log('[lyric]', lyricText.text);
+      setLyric(phrase ? phrase.text : '');
+      console.log('[lyric]', phrase?.text ?? '');
     }
   },
 });
