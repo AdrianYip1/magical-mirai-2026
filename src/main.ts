@@ -8,7 +8,7 @@ import panelFrag from './shaders/panel.frag.glsl?raw';
 import cubeVert from './shaders/cube.vert.glsl?raw';
 import cubeFrag from './shaders/cube.frag.glsl?raw';
 import glassFrag from './shaders/glass.frag?raw';
-import { GlitchPass } from 'three/examples/jsm/Addons.js';
+import { ConvexGeometry, GlitchPass } from 'three/examples/jsm/Addons.js';
 
 // Constant Values
 const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
@@ -59,19 +59,38 @@ const glassUniforms = {
   uBeatIntensity: {value: 0.0},
 };
 
-const glass = new THREE.Mesh(
-  new THREE.PlaneGeometry(3, 3, 10),
-  new THREE.ShaderMaterial({
-    vertexShader: cubeVert,
-    fragmentShader: glassFrag,
-    uniforms: glassUniforms,
-    transparent: true,
-    side: THREE.DoubleSide,
-  })
-);
-glass.scale.set(0.5, 0.5, 0.5);
-scene.add(glass);
+function drawSphere(vertices: number) {
+  const pointsGeo = fibSphere(vertices);
+  const positions = pointsGeo.attributes.position;
 
+  // Get vec3 for convex geometry
+  const points: THREE.Vector3[] = [];
+  for (let i = 0; i < positions.count; i++) {
+    points.push(new THREE.Vector3(
+      positions.getX(i),
+      positions.getY(i),
+      positions.getZ(i)
+    ));
+  }
+
+  // Use convex hull triangulation in 3d
+  const geometry = new ConvexGeometry(points);
+  const mesh = new THREE.Mesh(
+    geometry,
+    new THREE.ShaderMaterial({
+      vertexShader: cubeVert,
+      fragmentShader: glassFrag,
+      uniforms: glassUniforms,
+      transparent: true,
+      side: THREE.DoubleSide, 
+    })
+  );
+
+  scene.add(mesh);
+  return mesh;
+}
+
+const sphereMesh = drawSphere(10);
 
 // 3D lyric text
 let loadedFont: Font | null = null;
@@ -146,11 +165,11 @@ function animate() {
   panelUniforms.uTime.value = clock.getElapsedTime();
 
 
-  glass.visible = false;
+  sphereMesh.visible = false;
   renderer.setRenderTarget(renderTarget);
   renderer.render(scene, camera);
 
-  glass.visible = true;
+  sphereMesh.visible = true;
   renderer.setRenderTarget(null);
   glassUniforms.uSceneTexture.value = renderTarget.texture;
   renderer.render(scene, camera);
@@ -239,6 +258,3 @@ function fibSphere(vertices: number) {
   return geometry;
 }
 
-function drawSphere(vertices: number) {
-  // TODO: Delaunay triangulation
-}
