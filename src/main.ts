@@ -10,6 +10,9 @@ import cubeFrag from './shaders/cube.frag.glsl?raw';
 import glassFrag from './shaders/glass.frag?raw';
 import { GlitchPass } from 'three/examples/jsm/Addons.js';
 
+// Constant Values
+const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
+const GOLDEN_ANGLE = 2 * Math.PI * (2 - GOLDEN_RATIO);
 
 // Renderer
 const canvas = document.createElement('canvas');
@@ -212,3 +215,30 @@ player.addListener({
     }
   },
 });
+
+// fibSphere will take n amount of vertices and find the xyz position of each one
+// sets them into a Float32Array and loads into a buffer geometry.
+function fibSphere(vertices: number) {
+  const geometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(vertices * 3);
+
+  for (let k = 0; k < vertices; k++) { // k goes from 0 to n - 1
+    const phi = k * GOLDEN_ANGLE;
+    const theta = Math.acos(1 - (2 * k / (vertices - 1)));
+    const x = Math.sin(theta) * Math.cos(phi);
+    const y = Math.sin(theta) * Math.sin(phi);
+    const z = Math.cos(theta);
+
+    positions[k * 3] = x;
+    positions[k * 3 + 1] = y;
+    positions[k * 3 + 2] = z;
+  }
+
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+  return geometry;
+}
+
+function drawSphere(vertices: number) {
+  // TODO: Delaunay triangulation
+}
