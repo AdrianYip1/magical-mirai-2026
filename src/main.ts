@@ -23,6 +23,8 @@ document.body.appendChild(canvas);
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.5;
 
 const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight);
 const renderLargerTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight);
@@ -118,7 +120,7 @@ const lightCubes: [number, number, number, number, number][] = [
 for (const [x, y, z, colour, size] of lightCubes) {
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(size, size, size),
-    new THREE.MeshBasicMaterial({ color: colour })
+    new THREE.MeshBasicMaterial({ color: new THREE.Color(colour).multiplyScalar(4) })
   );
   mesh.position.set(x, y, z);
   scene.add(mesh);
@@ -160,8 +162,6 @@ function drawSphere(vertexCount: number, uniforms: any, layer: number) {
   scene.add(mesh);
   return mesh;
 }
-
-
 
 function fibSphere(vertices: number) {
   const geometry = new THREE.BufferGeometry();
