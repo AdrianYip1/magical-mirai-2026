@@ -11,7 +11,7 @@ import { ConvexGeometry } from 'three/examples/jsm/Addons.js';
 const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
 const GOLDEN_ANGLE = 2 * Math.PI * (2 - GOLDEN_RATIO);
 const SPHERE_RADIUS = 5;
-const MIN_VERTS = 100;
+const MIN_VERTS = 50;
 const MAX_VERTS = 120;
 const VERT_STEP = 5;
 let currentVerts = MIN_VERTS;
@@ -24,10 +24,8 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
 
-const renderTarget = new THREE.WebGLRenderTarget(
-  window.innerWidth,
-  window.innerHeight
-);
+const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight);
+const renderLargerTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight);
 
 // Scene
 const scene = new THREE.Scene();
@@ -42,7 +40,7 @@ controls.dampingFactor = 0.05;
 controls.enableZoom = true;
 controls.target.set(0, 0, 0);
 controls.minDistance = 0;
-controls.maxDistance = 2 * SPHERE_RADIUS;
+controls.maxDistance = 6* SPHERE_RADIUS;
 controls.rotateSpeed = -1;
 
 window.addEventListener('resize', () => {
@@ -50,25 +48,43 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderTarget.setSize(window.innerWidth, window.innerHeight);
-  glassUniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
+  renderLargerTarget.setSize(window.innerWidth, window.innerHeight);
 });
 
-// Cube Camera
+// Cube Camera (small sphere)
 const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256);
 const cubeCamera = new THREE.CubeCamera(0.1, 100, cubeRenderTarget);
 cubeCamera.position.set(0, 0, 0);
+cubeCamera.layers.set(0);
 scene.add(cubeCamera);
 
 camera.layers.enable(1);
+camera.layers.enable(2);
+
+// Cube Camera (large sphere)
+const cubeLargeRenderTarget = new THREE.WebGLCubeRenderTarget(256);
+const cubeLargeCamera = new THREE.CubeCamera(0.1, 100, cubeLargeRenderTarget);
+cubeLargeCamera.position.set(0, 0, 0);
+cubeLargeCamera.layers.set(0);
+scene.add(cubeLargeCamera);
+
+cubeLargeCamera.layers.enable(1);
 
 //Shader Uniforms
-const glassUniforms = {
+const glassInnerUniforms = {
   uCameraPos: {value: camera.position},
-  uSceneTexture: {value : null as THREE.Texture | null},
-  uResolution: {value: new THREE.Vector2(window.innerWidth, window.innerHeight)},
   uBeatIntensity: {value: 0.0},
-  uInsideSphere: {value: -1.0}, // Checks if camera is inside or outside sphere (-1 or 1) to change the direction of normal vectors of the primitives
   uEnvMap: {value: cubeRenderTarget.texture },
+  uSceneTexture: {value: null as THREE.Texture | null},
+  uRadius: {value: SPHERE_RADIUS},
+};
+
+const glassOuterUniforms = {
+  uCameraPos: {value: camera.position},
+  uBeatIntensity: {value: 0.0},
+  uEnvMap: {value: cubeLargeRenderTarget.texture },
+  uSceneTexture: {value: null as THREE.Texture | null},
+  uRadius: {value: SPHERE_RADIUS * 3},
 };
 
 const lightCube1 = new THREE.Mesh(
@@ -84,6 +100,29 @@ const lightCube2 = new THREE.Mesh(
 );
 lightCube2.position.set(-7, 4, 0);
 scene.add(lightCube2);
+
+const lightCubes: [number, number, number, number, number][] = [
+  // x, y, z, colour, size
+  // outside sphere
+  [ 6,  2,  4, 0x00ffff, 0.6],
+  [-5, -6,  3, 0xff00ff, 0.6],
+  [ 4,  6, -5, 0xff8800, 0.5],
+  [-6,  3, -6, 0x0088ff, 0.7],
+  [ 0, -8,  2, 0x00ff88, 0.5],
+  // inside sphere
+  [ 2,  1,  0, 0xffffff, 0.3],
+  [-1, -2,  2, 0x88aaff, 0.3],
+  [ 0,  3, -2, 0xff88aa, 0.3],
+];
+
+for (const [x, y, z, colour, size] of lightCubes) {
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(size, size, size),
+    new THREE.MeshBasicMaterial({ color: colour })
+  );
+  mesh.position.set(x, y, z);
+  scene.add(mesh);
+}
 
 // Build and Render the Sphere 
 function buildConvexGeometry(vertexCount: number): ConvexGeometry {
@@ -105,22 +144,24 @@ function buildConvexGeometry(vertexCount: number): ConvexGeometry {
   return flat;
 }
 
-function drawSphere(vertexCount: number) {
+function drawSphere(vertexCount: number, uniforms: any, layer: number) {
   const geometry = buildConvexGeometry(vertexCount);
   const mesh = new THREE.Mesh(
     geometry,
     new THREE.ShaderMaterial({
       vertexShader: cubeVert,
       fragmentShader: glassFrag,
-      uniforms: glassUniforms,
+      uniforms: uniforms,
       transparent: true,
       side: THREE.DoubleSide,
     })
   );
-  mesh.layers.set(1);
+  mesh.layers.set(layer);
   scene.add(mesh);
   return mesh;
 }
+
+
 
 function fibSphere(vertices: number) {
   const geometry = new THREE.BufferGeometry();
@@ -141,27 +182,42 @@ function fibSphere(vertices: number) {
   return geometry;
 }
 
-const sphereMesh = drawSphere(currentVerts);
+const sphereMesh = drawSphere(currentVerts, glassInnerUniforms, 1);
 sphereMesh.scale.setScalar(SPHERE_RADIUS);
 
+const largerSphereMesh = drawSphere(currentVerts, glassOuterUniforms, 2);
+largerSphereMesh.scale.setScalar(SPHERE_RADIUS * 3);
+
+largerSphereMesh.renderOrder = 1;
+sphereMesh.renderOrder = 0;
 
 // Animation loop
 function animate() {
   requestAnimationFrame(animate);
+  glassInnerUniforms.uCameraPos.value = camera.position;
+  glassOuterUniforms.uCameraPos.value = camera.position;
   controls.rotateSpeed = camera.position.length() < SPHERE_RADIUS ? -1 : 1;
   controls.update();
 
-  glassUniforms.uInsideSphere.value = camera.position.length() < SPHERE_RADIUS ? -1 : 1;
-  glassUniforms.uBeatIntensity.value *= 0.9;
-  cubeCamera.update(renderer, scene); // since the sphere mesh is on layer 1 and cubeCamera is layer 0, sphere is excluded
+  glassInnerUniforms.uBeatIntensity.value = 0.9;
+  glassOuterUniforms.uBeatIntensity.value = 0.9;
 
+  // layer 0 only sees cubes
   sphereMesh.visible = false;
+  largerSphereMesh.visible = false;
+  cubeCamera.update(renderer, scene);
   renderer.setRenderTarget(renderTarget);
-  renderer.render(scene, camera);
-
+  renderer.render(scene, camera);           // scene texture: sphere hidden so we see through it
   sphereMesh.visible = true;
+  glassInnerUniforms.uSceneTexture.value = renderTarget.texture;
+
+  cubeLargeCamera.update(renderer, scene);
+  renderer.setRenderTarget(renderLargerTarget);
+  renderer.render(scene, camera);
+  largerSphereMesh.visible = true;
+  glassOuterUniforms.uSceneTexture.value = renderLargerTarget.texture;
+
   renderer.setRenderTarget(null);
-  glassUniforms.uSceneTexture.value = renderTarget.texture;
   renderer.render(scene, camera);
 }
 animate();
@@ -213,7 +269,8 @@ player.addListener({
     const beat = player.findBeat(position);
     if (beat != currentBeat) {
       currentBeat = beat;
-      glassUniforms.uBeatIntensity.value = 1.0;
+      glassInnerUniforms.uBeatIntensity.value = 1.0;
+      glassOuterUniforms.uBeatIntensity.value = 1.0;
       currentVerts = currentVerts >= MAX_VERTS ? MIN_VERTS : currentVerts + VERT_STEP;
       sphereMesh.geometry.dispose();
       sphereMesh.geometry = buildConvexGeometry(currentVerts);

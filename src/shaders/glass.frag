@@ -1,67 +1,73 @@
-uniform vec3 uCameraPos;
-uniform sampler2D uSceneTexture;
-uniform vec2 uResolution;
-uniform float uInsideSphere;
-uniform samplerCube uEnvMap;
+uniform mat4 projectionMatrix;
 
-// Beat intensity set to 1 when a new bar begins?
-// Will modify elements like # of panels, reflection strength, etc.
+uniform vec3 uCameraPos;
+uniform samplerCube uEnvMap;
+uniform sampler2D uSceneTexture;
+uniform float uRadius;
 uniform float uBeatIntensity;
 
 varying vec3 vWorldPos;
 varying vec3 vNormal;
 
-const float GLASS_INCIDENCE = 0.04;
-const float REFRACTION_STRENGTH = 0.05;
-
-// Index of refraction ratios
-const float IOR_OUTSIDE = 0.667; //air to glass
-const float IOR_INSIDE = 1.5 ; //glass to air
-
-const float RED_OFFSET = 1.0;
-const float GREEN_OFFSET = 1.15;
-const float BLUE_OFFSET = 1.2;
-
+const float GLASS_INCIDENCE = 0.15;
+const float IOR_AIR = 1.0;
+const float IOR_GLASS = 1.5;
+const vec3 absorbCoeff = vec3(0.1, 0.05, 0.02);
 
 float fresnel(const float cosTheta, const float F0) {
     return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
+float exitT(vec3 entryPoint, vec3 dir) {
+    float b = 2.0 * dot(entryPoint, dir);
+    float c = dot(entryPoint, entryPoint) - uRadius * uRadius;
+    return (-b + sqrt(max(0.0, b * b - 4.0 * c))) / 2.0;
+}
+
+vec2 exitUV(vec3 entryPoint, vec3 dir) {
+    vec3 exitPoint = entryPoint + exitT(entryPoint, dir) * dir;
+    vec4 clip = projectionMatrix * viewMatrix * vec4(exitPoint, 1.0);
+    vec2 ndc = clip.xy / clip.w;
+    return ndc * 0.5 + 0.5;
+}
+
 void main() {
-    float IOR = (uInsideSphere < 0.0) ? IOR_INSIDE : IOR_OUTSIDE;
-    vec3 faceNormal = (uInsideSphere < 0.0) ? -normalize(vNormal) : normalize(vNormal); // normal vector of every triangle face
-    vec3 viewDir = normalize(uCameraPos - vWorldPos); // outwards towards camera
+    float IOR = gl_FrontFacing ? (IOR_AIR / IOR_GLASS) : (IOR_GLASS / IOR_AIR);
+    vec3 faceNormal = gl_FrontFacing ? normalize(vNormal) : -normalize(vNormal);
+    vec3 viewDir = normalize(uCameraPos - vWorldPos);
 
-    // Refraction
-    vec2 screenUV = gl_FragCoord.xy / uResolution;
-    vec3 refractDir = refract(-viewDir, faceNormal, IOR);
-    
+    float cosI = dot(faceNormal, viewDir);
+    bool totalInternalReflection = !gl_FrontFacing && (IOR * IOR * (1.0 - cosI * cosI) > 1.0);
+
     vec3 refracted = vec3(0.0);
-    bool totalInternalReflection = (uInsideSphere < 0.0 && (length(refractDir) < 0.001));
     if (!totalInternalReflection) {
-        vec2 offset = refractDir.xy * REFRACTION_STRENGTH;
-
-        // Testing variation with uBeatIntensity
         float spread = 1.0 + uBeatIntensity * 0.1;
+        vec3 refDirR = refract(-viewDir, faceNormal, IOR);
+        vec3 refDirG = refract(-viewDir, faceNormal, IOR * (1.0 + 0.01 * spread));
+        vec3 refDirB = refract(-viewDir, faceNormal, IOR * (1.0 + 0.04 * spread));
+        refracted.r = texture2D(uSceneTexture, exitUV(vWorldPos, refDirR)).r;
+        refracted.g = texture2D(uSceneTexture, exitUV(vWorldPos, refDirG)).g;
+        refracted.b = texture2D(uSceneTexture, exitUV(vWorldPos, refDirB)).b;
 
-        // Simplified chromatic aberration
-        float r = texture2D(uSceneTexture, screenUV + offset * RED_OFFSET * spread).r;
-        float g = texture2D(uSceneTexture, screenUV + offset * GREEN_OFFSET * spread).g;
-        float b = texture2D(uSceneTexture, screenUV + offset * BLUE_OFFSET * spread).b;
-        refracted = vec3(r, g, b);
+        float thickness = exitT(vWorldPos, refDirR);
+        refracted *= exp(-absorbCoeff * thickness);
     }
 
     vec3 reflectDir = reflect(-viewDir, faceNormal);
     vec3 reflectColour = textureCube(uEnvMap, reflectDir).rgb;
 
     float cosTheta = abs(dot(faceNormal, viewDir));
-    float F0 = GLASS_INCIDENCE;
-    float fres = fresnel(cosTheta, F0);
+    float fres = fresnel(cosTheta, GLASS_INCIDENCE);
 
-    vec3 combinedColour = mix(refracted, reflectColour, fres);
+    vec3 combinedColour;
+    float alpha;
+    if (totalInternalReflection) {
+        combinedColour = reflectColour;
+        alpha = 1.0;
+    } else {
+        combinedColour = mix(refracted, reflectColour, fres);
+        alpha = gl_FrontFacing ? fres : max(fres, 0.15);
+    }
 
-    gl_FragColor = vec4(combinedColour, fres);
-
+    gl_FragColor = vec4(combinedColour, alpha);
 }
-
-
