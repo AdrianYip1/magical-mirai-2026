@@ -6,6 +6,8 @@ import { Player, IPlayerApp, IPhrase, IBeat } from 'textalive-app-api';
 import cubeVert from './shaders/cube.vert.glsl?raw';
 import glassFrag from './shaders/glass.frag?raw';
 import { ConvexGeometry } from 'three/examples/jsm/Addons.js';
+import './style.css';
+import { mountSongSelection } from './songSelect';
 
 // Constants
 const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
@@ -17,8 +19,21 @@ const VERT_STEP = 5;
 let currentVerts = MIN_VERTS;
 
 // Renderer
+const canvasWrapper = document.createElement('div');
+canvasWrapper.className = 'canvas-wrapper';
+canvasWrapper.style.position = 'fixed';
+canvasWrapper.style.inset = '0';
+canvasWrapper.style.width = '100%';
+canvasWrapper.style.height = '100%';
+canvasWrapper.style.overflow = 'hidden';
+canvasWrapper.style.zIndex = '0';
+document.body.appendChild(canvasWrapper);
+
 const canvas = document.createElement('canvas');
-document.body.appendChild(canvas);
+canvasWrapper.appendChild(canvas);
+canvas.style.display = 'none';
+canvas.style.width = '100%';
+canvas.style.height = '100%';
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -234,22 +249,19 @@ const player = new Player({
   mediaElement: document.createElement('audio'),
 });
 
+// Song selection UI
+mountSongSelection(canvasWrapper, undefined, (song) => {
+  canvas.style.display = 'block';
+  player.createFromSongUrl(song.url, { video: song.videoIds ?? {} });
+});
+
 let currentPhrase: IPhrase | null = null;
 let currentBeat: IBeat | null = null;
 
 player.addListener({
   onAppReady(app: IPlayerApp) {
-    if (!app.songUrl) {
-      player.createFromSongUrl('https://piapro.jp/t/E2i3/20251215092113', {
-        video: {
-          beatId: 4827298,
-          chordId: 2963759,
-          repetitiveSegmentId: 3086266,
-          lyricId: 126533,
-          lyricDiffId: 28631,
-        },
-      });
-    }
+    // Song selection UI controls which song loads.
+    // If you want a default song, call player.createFromSongUrl() here.
   },
 
   onVideoReady() {
