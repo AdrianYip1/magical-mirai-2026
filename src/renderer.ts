@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SPHERE_RADIUS, MIN_VERTS, drawSphere } from './sphere';
+import { update as updateParticles, points as particlePoints } from './particles';
 
 // DOM
 export const canvasWrapper = document.createElement('div');
@@ -23,13 +24,13 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.5;
+renderer.autoClear = false;
 
 export const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight);
 export const renderLargerTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight);
 
 // Scene
 export const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0a0a1a);
 
 export const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
 camera.position.set(0, 0, 3);
@@ -121,32 +122,61 @@ const dirLight = new THREE.DirectionalLight(0x88ccff, 1.5);
 dirLight.position.set(2, 4, 3);
 scene.add(dirLight);
 
+// Particles
+scene.add(particlePoints);
+
+// Fade quad — dims previous frame each tick to create motion trails
+const fadeScene  = new THREE.Scene();
+fadeScene.add(new THREE.Mesh(
+  new THREE.PlaneGeometry(2, 2),
+  new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.015, depthWrite: false })
+));
+const fadeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+let beatIntensity = 0;
+export function triggerBeat(strength: number) {
+  beatIntensity = strength;
+}
+
+const clock = new THREE.Clock();
+let elapsed = 0;
+
 // Animation loop
 export function animate() {
   requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  elapsed += delta;
+  beatIntensity *= 0.85;
 
-  glassInnerUniforms.uCameraPos.value = camera.position;
-  glassOuterUniforms.uCameraPos.value = camera.position;
   controls.rotateSpeed = camera.position.length() < SPHERE_RADIUS ? -1 : 1;
   controls.update();
 
-  glassInnerUniforms.uBeatIntensity.value = 0.9;
-  glassOuterUniforms.uBeatIntensity.value = 0.9;
+  glassInnerUniforms.uCameraPos.value    = camera.position;
+  glassOuterUniforms.uCameraPos.value    = camera.position;
+  glassInnerUniforms.uBeatIntensity.value = beatIntensity;
+  glassOuterUniforms.uBeatIntensity.value = beatIntensity;
 
+  // particle sim step (writes to its own render target)
+  updateParticles(renderer, elapsed, delta, beatIntensity);
+
+  // sphere passes (kept for when spheres are re-enabled)
   sphereMesh.visible = false;
   largerSphereMesh.visible = false;
   cubeCamera.update(renderer, scene);
   renderer.setRenderTarget(renderTarget);
+  renderer.clear();
   renderer.render(scene, camera);
-  sphereMesh.visible = true;
   glassInnerUniforms.uSceneTexture.value = renderTarget.texture;
 
   cubeLargeCamera.update(renderer, scene);
   renderer.setRenderTarget(renderLargerTarget);
+  renderer.clear();
   renderer.render(scene, camera);
-  largerSphereMesh.visible = true;
   glassOuterUniforms.uSceneTexture.value = renderLargerTarget.texture;
 
+  // final render to screen — fade quad first, then scene on top
   renderer.setRenderTarget(null);
+  renderer.clearDepth();
+  renderer.render(fadeScene, fadeCamera);
   renderer.render(scene, camera);
 }
