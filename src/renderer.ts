@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SPHERE_RADIUS, MIN_VERTS, drawSphere } from './sphere';
-import { update as updateParticles, points as particlePoints } from './particles';
+import { update as updateParticles, points as particlePoints, setLyricStrength, getLyricStrength } from './particles';
 
 // DOM
 export const canvasWrapper = document.createElement('div');
@@ -147,12 +147,13 @@ export function animate() {
   const delta = clock.getDelta();
   elapsed += delta;
   beatIntensity *= 0.85;
+  setLyricStrength(getLyricStrength() * 0.998); // slow decay — letters hold shape for 10s
 
   controls.rotateSpeed = camera.position.length() < SPHERE_RADIUS ? -1 : 1;
   controls.update();
 
-  glassInnerUniforms.uCameraPos.value    = camera.position;
-  glassOuterUniforms.uCameraPos.value    = camera.position;
+  glassInnerUniforms.uCameraPos.value = camera.position;
+  glassOuterUniforms.uCameraPos.value = camera.position;
   glassInnerUniforms.uBeatIntensity.value = beatIntensity;
   glassOuterUniforms.uBeatIntensity.value = beatIntensity;
 
