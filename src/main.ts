@@ -1,10 +1,14 @@
 import './style.css';
-import { Player, IPlayerApp, IPhrase, IBeat } from 'textalive-app-api';
-import { canvas, canvasWrapper, animate, glassInnerUniforms, glassOuterUniforms, sphereMesh } from './renderer';
-import { buildConvexGeometry, MIN_VERTS, MAX_VERTS, VERT_STEP } from './sphere';
-import { initLyrics, setLyric } from './lyrics';
+import { Player, IPlayerApp, IWord, IPhrase, IBeat, IChar } from 'textalive-app-api';
+import { canvas, canvasWrapper, animate, glassInnerUniforms, glassOuterUniforms, renderer, scene, cubeCamera, cubeLargeCamera, triggerBeat } from './renderer';
 import { mountSongSelection } from './songSelect';
+import { initLyrics, setWord, setChar, buildLayout, clearPhrase } from './lyrics';
 
+let fontReady = false;
+let videoReady = false;
+
+cubeCamera.update(renderer, scene);
+cubeLargeCamera.update(renderer, scene);
 animate();
 
 let timerReady = false;
@@ -22,19 +26,22 @@ mountSongSelection(canvasWrapper, undefined, (song) => {
   player.createFromSongUrl(song.url, { video: song.videoIds ?? {} });
 });
 
+let currentWord:   IWord   | null = null;
+let currentChar:   IChar   | null = null;
 let currentPhrase: IPhrase | null = null;
-let currentBeat: IBeat | null = null;
-let currentVerts = MIN_VERTS;
+let currentBeat:   IBeat   | null = null;
 
-initLyrics(() => {
-  if (currentPhrase) setLyric(currentPhrase.text);
-});
+ initLyrics(() => {
+    fontReady = true;
+    if (videoReady) buildLayout(player.video!.phrases);
+  });
 
 player.addListener({
   onAppReady(_app: IPlayerApp) {},
 
   onVideoReady() {
-    console.log('[TextAlive] video ready');
+    videoReady = true;
+    if (fontReady) buildLayout(player.video!.phrases);
   },
 
   onTimerReady() {
@@ -45,21 +52,30 @@ player.addListener({
   onTimeUpdate(position: number) {
     if (!player.video) return;
 
+
     const beat = player.findBeat(position);
     if (beat !== currentBeat) {
       currentBeat = beat;
       glassInnerUniforms.uBeatIntensity.value = 1.0;
       glassOuterUniforms.uBeatIntensity.value = 1.0;
-      currentVerts = currentVerts >= MAX_VERTS ? MIN_VERTS : currentVerts + VERT_STEP;
-      sphereMesh.geometry.dispose();
-      sphereMesh.geometry = buildConvexGeometry(currentVerts);
+      if (player.findChorus(position)) triggerBeat(1.0);
     }
 
     const phrase = player.video.findPhrase(position);
     if (phrase !== currentPhrase) {
       currentPhrase = phrase;
-      setLyric(phrase ? phrase.text : '');
-      console.log('[lyric]', phrase?.text ?? '');
     }
-  },
+
+    const word = player.video.findWord(position);
+    if (word !== currentWord) {
+      currentWord = word;
+      if (word) setWord(word);
+    }
+
+    const char = player.video.findChar(position);
+    if (char !== currentChar) {
+      currentChar = char;
+      if (char) setChar(char);
+    }
+  }
 });

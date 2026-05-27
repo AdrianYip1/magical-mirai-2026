@@ -2,10 +2,11 @@ precision highp float;
 
 uniform sampler2D uState;
 uniform sampler2D uTargetTex;
+uniform sampler2D uAssignmentTex;
 uniform float uTime;
 uniform float uDelta;
 uniform float uBeat;
-uniform float uLyricStrength;
+uniform float uFadeRate;
 
 varying vec2 vUv;
 
@@ -83,17 +84,20 @@ void main() {
 
     vec3 target   = texture2D(uTargetTex, vUv).xyz;
     vec3 toTarget = target - pos;
+    // use length(toTarget) to compute a radius for particles
 
     vec3 flow     = curl(pos * 0.05 + uTime * 0.06);
     float speed   = 1.2 + uBeat * 3.0;
 
-    // When uLyricStrength = 0 → pure curl flow
-    // When uLyricStrength = 1 → particles rush toward their text surface target
-    vec3 velocity = mix(flow, toTarget * 3.0, uLyricStrength);
+    float active       = texture2D(uAssignmentTex, vUv).r;
+    float activateTime = texture2D(uAssignmentTex, vUv).g;
+    float age_s        = max(0.0, uTime - activateTime);
+    float fade         = active * max(0.0, 1.0 - age_s * uFadeRate);
+
+    vec3 velocity = mix(flow, toTarget * 6.0, fade);
     pos += velocity * speed * uDelta;
 
-    // Slow down aging while forming — particles live longer inside letters
-    age += uDelta * mix(0.12, 0.02, uLyricStrength);
+    age += uDelta * mix(0.12, 0.02, fade);
 
     gl_FragColor = vec4(pos, age);
 }

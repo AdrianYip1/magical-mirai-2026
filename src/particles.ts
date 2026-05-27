@@ -4,6 +4,7 @@ import simFrag    from './shaders/particles/sim.frag?raw';
 import renderVert from './shaders/particles/render.vert?raw';
 import renderFrag from './shaders/particles/render.frag?raw';
 
+
 const WIDTH = 256;
 const COUNT = WIDTH * WIDTH;
 
@@ -22,11 +23,11 @@ function makeInitialState(): THREE.DataTexture {
 
 function makeRT(): THREE.WebGLRenderTarget {
   return new THREE.WebGLRenderTarget(WIDTH, WIDTH, {
-    minFilter:     THREE.NearestFilter,
-    magFilter:     THREE.NearestFilter,
-    format:        THREE.RGBAFormat,
-    type:          THREE.FloatType,
-    depthBuffer:   false,
+    minFilter: THREE.NearestFilter,
+    magFilter: THREE.NearestFilter,
+    format: THREE.RGBAFormat,
+    type: THREE.FloatType,
+    depthBuffer: false,
     stencilBuffer: false,
   });
 }
@@ -35,35 +36,72 @@ let readRT  = makeRT();
 let writeRT = makeRT();
 let prevTex: THREE.Texture = makeInitialState();
 
-const targetData = new Float32Array(COUNT * 4);
-const targetTex  = new THREE.DataTexture(targetData, WIDTH, WIDTH, THREE.RGBAFormat, THREE.FloatType);
+const targetData     = new Float32Array(COUNT * 4);
+const targetTex      = new THREE.DataTexture(targetData, WIDTH, WIDTH, THREE.RGBAFormat, THREE.FloatType);
 targetTex.needsUpdate = true;
+
+const assignmentData = new Float32Array(COUNT * 4);
+const assignmentTex  = new THREE.DataTexture(assignmentData, WIDTH, WIDTH, THREE.RGBAFormat, THREE.FloatType);
+assignmentTex.needsUpdate = true;
+
+let elapsedTime = 0;
 
 const simMaterial = new THREE.RawShaderMaterial({
   vertexShader:   simVert,
   fragmentShader: simFrag,
   uniforms: {
-    uState: { value: prevTex },
-    uTime: { value: 0 },
-    uDelta: { value: 0 },
-    uBeat: { value: 0 },
-    uTargetTex: { value: targetTex },
-    uLyricStrength:{ value: 0 },
+    uState:         { value: prevTex },
+    uTime:          { value: 0 },
+    uDelta:         { value: 0 },
+    uBeat:          { value: 0 },
+    uTargetTex:     { value: targetTex },
+    uAssignmentTex: { value: assignmentTex },
+    uFadeRate:      { value: 0.25 },
   },
 });
 
-export function setTargets(data: Float32Array) {
-  targetData.set(data);
-  targetTex.needsUpdate = true;
+export function activateWordParticles(indices: Uint32Array, samples: Float32Array) {
+  for (let i = 0; i < indices.length; i++) {
+    const p = indices[i];
+    assignmentData[p * 4 + 0] = 1.0;
+    assignmentData[p * 4 + 1] = elapsedTime;
+    targetData[p * 4 + 0] = samples[i * 4 + 0];
+    targetData[p * 4 + 1] = samples[i * 4 + 1];
+    targetData[p * 4 + 2] = samples[i * 4 + 2];
+    targetData[p * 4 + 3] = 0;
+  }
+  assignmentTex.needsUpdate = true;
+  targetTex.needsUpdate     = true;
 }
 
-export function setLyricStrength(v: number) {
-  simMaterial.uniforms.uLyricStrength.value = v;
+export function clearParticles(indices: Uint32Array) {
+  for (let i = 0; i < indices.length; i++) {
+    const p = indices[i];
+    assignmentData[p * 4 + 0] = 0.0;
+    assignmentData[p * 4 + 1] = 0.0;
+  }
+  assignmentTex.needsUpdate = true;
 }
 
-export function getLyricStrength(): number {
-  return simMaterial.uniforms.uLyricStrength.value;
+export function scatterParticlesInBox(
+  minX: number, maxX: number,
+  minY: number, maxY: number,
+  minZ: number, maxZ: number,
+) {
+  let changed = false;
+  for (let p = 0; p < COUNT; p++) {
+    if (assignmentData[p * 4] < 0.5) continue;
+    const tx = targetData[p * 4 + 0];
+    const ty = targetData[p * 4 + 1];
+    const tz = targetData[p * 4 + 2];
+    if (tx >= minX && tx <= maxX && ty >= minY && ty <= maxY && tz >= minZ && tz <= maxZ) {
+      assignmentData[p * 4 + 1] = -1e6; // age_s becomes huge → fade = 0
+      changed = true;
+    }
+  }
+  if (changed) assignmentTex.needsUpdate = true;
 }
+
 
 const simScene  = new THREE.Scene();
 simScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), simMaterial));
@@ -81,7 +119,7 @@ for (let row = 0; row < WIDTH; row++) {
 const dummyPos = new Float32Array(COUNT * 3);
 const geometry = new THREE.BufferGeometry();
 geometry.setAttribute('position', new THREE.BufferAttribute(dummyPos, 3));
-geometry.setAttribute('aUv',      new THREE.BufferAttribute(uvs, 2));
+geometry.setAttribute('aUv', new THREE.BufferAttribute(uvs, 2));
 
 const renderMaterial = new THREE.ShaderMaterial({
   vertexShader:   renderVert,
@@ -90,14 +128,17 @@ const renderMaterial = new THREE.ShaderMaterial({
   depthWrite:     false,
   blending:       THREE.AdditiveBlending,
   uniforms: {
-    uState: { value: prevTex },
-    uBeat:  { value: 0 },
+    uState:         { value: prevTex },
+    uBeat:          { value: 0 },
+    uEnvMap:        { value: null },
+    uAssignmentTex: { value: assignmentTex },
   },
 });
 
 export const points = new THREE.Points(geometry, renderMaterial);
 
-export function update(renderer: THREE.WebGLRenderer, elapsed: number, delta: number, beat = 0) {
+export function update(renderer: THREE.WebGLRenderer, elapsed: number, delta: number, beat = 0, envMap?: THREE.Texture) {
+  elapsedTime = elapsed;
   simMaterial.uniforms.uState.value = prevTex;
   simMaterial.uniforms.uTime.value  = elapsed;
   simMaterial.uniforms.uDelta.value = Math.min(delta, 0.05);
@@ -112,6 +153,7 @@ export function update(renderer: THREE.WebGLRenderer, elapsed: number, delta: nu
   writeRT = tmp;
   prevTex = readRT.texture;
 
+  if (envMap) renderMaterial.uniforms.uEnvMap.value = envMap;
   renderMaterial.uniforms.uState.value = prevTex;
   renderMaterial.uniforms.uBeat.value  = beat;
 }

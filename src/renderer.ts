@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SPHERE_RADIUS, MIN_VERTS, drawSphere } from './sphere';
-import { update as updateParticles, points as particlePoints, setLyricStrength, getLyricStrength } from './particles';
+import { update as updateParticles, points as particlePoints } from './particles';
 
 // DOM
 export const canvasWrapper = document.createElement('div');
@@ -85,27 +85,8 @@ export const glassOuterUniforms = {
   uRadius:       { value: SPHERE_RADIUS * 3 },
 };
 
-// Light cubes
-const lightCubeData: [number, number, number, number, number][] = [
-  // x, y, z, colour, size — outside sphere
-  [ 6,  2,  4, 0x00ffff, 0.6],
-  [-5, -6,  3, 0xff00ff, 0.6],
-  [ 4,  6, -5, 0xff8800, 0.5],
-  [-6,  3, -6, 0x0088ff, 0.7],
-  [ 0, -8,  2, 0x00ff88, 0.5],
-  // inside sphere
-  [ 2,  1,  0, 0xffffff, 0.3],
-  [-1, -2,  2, 0x88aaff, 0.3],
-  [ 0,  3, -2, 0xff88aa, 0.3],
-];
-for (const [x, y, z, colour, size] of lightCubeData) {
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(size, size, size),
-    new THREE.MeshBasicMaterial({ color: new THREE.Color(colour).multiplyScalar(4) })
-  );
-  mesh.position.set(x, y, z);
-  scene.add(mesh);
-}
+// Light cubes removed
+
 
 // Spheres
 export const sphereMesh = drawSphere(scene, MIN_VERTS, glassInnerUniforms, 1);
@@ -147,7 +128,6 @@ export function animate() {
   const delta = clock.getDelta();
   elapsed += delta;
   beatIntensity *= 0.85;
-  setLyricStrength(getLyricStrength() * 0.998); // slow decay — letters hold shape for 10s
 
   controls.rotateSpeed = camera.position.length() < SPHERE_RADIUS ? -1 : 1;
   controls.update();
@@ -158,7 +138,7 @@ export function animate() {
   glassOuterUniforms.uBeatIntensity.value = beatIntensity;
 
   // particle sim step (writes to its own render target)
-  updateParticles(renderer, elapsed, delta, beatIntensity);
+  updateParticles(renderer, elapsed, delta, beatIntensity, cubeRenderTarget.texture);
 
   // sphere passes (kept for when spheres are re-enabled)
   sphereMesh.visible = false;
