@@ -68,6 +68,20 @@
     0 4px 28px rgba(0, 0, 0, 0.8);
 }
 
+.sss-card--utility {
+  --c: #666;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.sss-util-label {
+  font-size: 0.65rem;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+}
+
 .sss-name {
   flex: 1;
   display: flex;

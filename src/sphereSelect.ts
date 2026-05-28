@@ -1,6 +1,12 @@
 import './sphereSelect.css';
 import type { SongOption } from './songSelect';
 
+export type WheelItem =
+  | { kind: 'song';     data: SongOption }
+  | { kind: 'settings' }
+  | { kind: 'language' }
+  | { kind: 'credits'}
+
 function parseSong(raw: string): { name: string; artist: string } {
   const i = raw.lastIndexOf(' — ');
   return i !== -1 ? { name: raw.slice(0, i), artist: raw.slice(i + 3) } : { name: raw, artist: '' };
@@ -22,12 +28,16 @@ const COLORS = [
 const RADIUS = 280;
 
 export function mountSphereSongSelect(
-  songs: SongOption[],
-  onSelect: (song: SongOption) => void,
+  items: WheelItem[],
+  onSongSelect: (song: SongOption) => void,
+  onSettings: () => void,
+  onLanguage: () => void,
+  onCredits: () => void,
 ): () => void {
-  const n = songs.length;
-  const STEP  = 360 / n;
+  const n = items.length;
+  const STEP = 360 / n;
 
+  // DOM 
 
   const root = document.createElement('div');
   root.className = 'sss-root';
@@ -35,59 +45,75 @@ export function mountSphereSongSelect(
   const scene = document.createElement('div');
   scene.className = 'sss-scene';
 
-  const inner = document.createElement('div');  // spins on Y axis
+  const inner = document.createElement('div');
   inner.className = 'sss-inner';
 
   scene.appendChild(inner);
   root.appendChild(scene);
   document.body.appendChild(root);
 
- // song cards
+  // Cards 
 
   const cardEls: HTMLDivElement[] = [];
+  let songColorIdx = 0;
 
-  songs.forEach((song, i) => {
-    const { name, artist } = parseSong(song.title);
-    const color = COLORS[i % COLORS.length];
+  items.forEach((item, i) => {
     const angleRad = (i / n) * 2 * Math.PI;
     const x = RADIUS * Math.sin(angleRad);
     const z = RADIUS * Math.cos(angleRad);
     const yDeg = (i / n) * 360;
+    const baseTransform = `translate3d(${x}px,0,${z}px) rotateY(${yDeg}deg)`;
 
     const card = document.createElement('div');
-    card.className  = 'sss-card';
-    card.style.cssText = `--c:${color}; transform:translate3d(${x}px,0,${z}px) rotateY(${yDeg}deg);`;
-    card.innerHTML  = `
-      <div class="sss-name">${escapeHtml(name)}</div>
-      <div class="sss-artist">${escapeHtml(artist)}</div>
-    `;
+
+    if (item.kind === 'song') {
+      const { name, artist } = parseSong(item.data.title);
+      const color = COLORS[songColorIdx++ % COLORS.length];
+      card.className    = 'sss-card';
+      card.style.cssText = `--c:${color}; transform:${baseTransform};`;
+      card.innerHTML    = `
+        <div class="sss-name">${escapeHtml(name)}</div>
+        <div class="sss-artist">${escapeHtml(artist)}</div>
+      `;
+    } else {
+      card.className = 'sss-card sss-card--utility';
+      card.style.cssText = `transform:${baseTransform};`;
+      card.innerHTML = item.kind === 'settings'
+        ? `<div class="sss-util-label">Settings</div>`
+        : item.kind === 'language'
+        ? `<div class="sss-util-label">Language</div>`
+        : `<div class="sss-util-label">Credits</div>`;
+    }
 
     card.addEventListener('click', () => {
       if (dragMoved > 5) return;
-      if (i === activeIndex) selectSong(song);
-      else snapTo(i);
+      if (i !== activeIndex) { snapTo(i); return; }
+      if (item.kind === 'song') selectSong(item.data);
+      else if (item.kind === 'settings') onSettings();
+      else if (item.kind === 'language') onLanguage();
+      else if (item.kind === 'credits') onCredits();
     });
 
     inner.appendChild(card);
     cardEls.push(card);
   });
 
-  // sttes
-  let spinAngle = 0;
+  // State  
+
+  let spinAngle   = 0;
   let targetAngle = 0;
   let activeIndex = 0;
-  let dragging = false;
-  let dragMoved = 0;
-  let lastX = 0;
+  let dragging    = false;
+  let dragMoved   = 0;
+  let lastX       = 0;
   let raf: number;
 
   function selectSong(song: SongOption) {
     root.style.transition = 'opacity 0.4s ease';
-    root.style.opacity = '0';
-    setTimeout(() => { cleanup(); onSelect(song); }, 400);
+    root.style.opacity    = '0';
+    setTimeout(() => { cleanup(); onSongSelect(song); }, 400);
   }
 
-  // Snap to card index, taking the shortest arc
   function snapTo(index: number) {
     activeIndex = ((index % n) + n) % n;
     const raw  = -activeIndex * STEP;
@@ -100,7 +126,8 @@ export function mountSphereSongSelect(
     cardEls.forEach((el, i) => el.classList.toggle('sss-card--active', i === activeIndex));
   }
 
-  //loop
+  // Loop  
+
   function tick() {
     spinAngle += (targetAngle - spinAngle) * 0.1;
     inner.style.transform = `rotateY(${spinAngle}deg)`;
@@ -108,54 +135,57 @@ export function mountSphereSongSelect(
   }
   raf = requestAnimationFrame(tick);
 
-  // fade effect
-
   updateActive();
   requestAnimationFrame(() => requestAnimationFrame(() => {
     cardEls.forEach((el, i) => {
       el.style.transition = `opacity 0.5s ${i * 0.06}s ease`;
-      el.style.opacity = '1';
+      el.style.opacity    = '1';
     });
   }));
 
-  // dragging the songs in select
+  // Drag
 
   function onPointerDown(e: PointerEvent) {
     dragging  = true;
     dragMoved = 0;
-    lastX = e.clientX;
+    lastX     = e.clientX;
     scene.style.cursor = 'grabbing';
   }
 
   function onPointerMove(e: PointerEvent) {
     if (!dragging) return;
-    const dx = e.clientX - lastX;
+    const dx    = e.clientX - lastX;
     spinAngle  += dx * 0.35;
-    targetAngle = spinAngle;   // follow cursor
+    targetAngle = spinAngle;
     dragMoved  += Math.abs(dx);
-    lastX = e.clientX;
+    lastX       = e.clientX;
   }
 
   function onPointerUp() {
     if (!dragging) return;
     dragging = false;
     scene.style.cursor = 'grab';
-    snapTo(Math.round(-spinAngle / STEP));  // snap to nearest
+    snapTo(Math.round(-spinAngle / STEP));
   }
 
   scene.addEventListener('pointerdown', onPointerDown);
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup',   onPointerUp);
 
-  // arrow keys to scroll
+  // Keyboard 
 
   function onKeyDown(e: KeyboardEvent) {
-    if (e.key === 'ArrowRight')  { e.preventDefault(); snapTo(activeIndex + 1); }
-    else if (e.key === 'ArrowLeft') { e.preventDefault(); snapTo(activeIndex - 1); }
-    else if (e.key === 'Enter') { selectSong(songs[activeIndex]); }
+    if      (e.key === 'ArrowRight') { e.preventDefault(); snapTo(activeIndex + 1); }
+    else if (e.key === 'ArrowLeft')  { e.preventDefault(); snapTo(activeIndex - 1); }
+    else if (e.key === 'Enter') {
+      const item = items[activeIndex];
+      if      (item.kind === 'song')      selectSong(item.data);
+      else if (item.kind === 'settings')  onSettings();
+      else if (item.kind === 'language')  onLanguage();
+      else if (item.kind === 'credits')   onCredits();
+    }
   }
   window.addEventListener('keydown', onKeyDown);
-
 
   function cleanup() {
     cancelAnimationFrame(raf);
@@ -168,4 +198,3 @@ export function mountSphereSongSelect(
 
   return cleanup;
 }
-

@@ -2,6 +2,7 @@ import './style.css';
 import { Player, IPlayerApp, IWord, IPhrase, IBeat, IChar } from 'textalive-app-api';
 import { canvas, animate, glassInnerUniforms, glassOuterUniforms, renderer, scene, cubeCamera, cubeLargeCamera, triggerBeat } from './renderer';
 import { mountSphereSongSelect } from './sphereSelect';
+import type { WheelItem } from './sphereSelect';
 import songs from './songs';
 import { initLyrics, setWord, setChar, buildLayout } from './lyrics';
 
@@ -22,10 +23,23 @@ const player = new Player({
   mediaElement: document.createElement('audio'),
 });
 
-mountSphereSongSelect(songs, (song) => {
-  canvas.style.display = 'block';
-  player.createFromSongUrl(song.url, { video: song.videoIds ?? {} });
-});
+const wheelItems: WheelItem[] = [
+  ...songs.map(s => ({ kind: 'song' as const, data: s })),
+  { kind: 'settings' as const },
+  { kind: 'language' as const },
+  { kind: 'credits' as const},
+];
+
+mountSphereSongSelect(
+  wheelItems,
+  (song) => {
+    canvas.style.display = 'block';
+    player.createFromSongUrl(song.url, { video: song.videoIds ?? {} });
+  },
+  () => { /* settings  - TODO */ },
+  () => { /* language  - TODO */ },
+  () => {/* credits - TODO */},
+);
 
 let currentWord:   IWord   | null = null;
 let currentChar:   IChar   | null = null;
