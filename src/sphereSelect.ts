@@ -33,9 +33,13 @@ export function mountSphereSongSelect(
   onSettings: () => void,
   onLanguage: () => void,
   onCredits: () => void,
-): () => void {
+  onHover: (song: SongOption) => void,
+  onLeave: () => void,
+  initialIndex = 0,
+): { cleanup: () => void; setLoading: (on: boolean) => void } {
   const n = items.length;
   const STEP = 360 / n;
+  initialIndex = ((initialIndex % n) + n) % n;
 
   // DOM 
 
@@ -100,18 +104,21 @@ export function mountSphereSongSelect(
 
   // State  
 
-  let spinAngle   = 0;
-  let targetAngle = 0;
-  let activeIndex = 0;
+  let spinAngle   = -initialIndex * STEP;   // start focused on the initial card
+  let targetAngle = -initialIndex * STEP;
+  let activeIndex = initialIndex;
   let dragging    = false;
   let dragMoved   = 0;
   let lastX       = 0;
   let raf: number;
 
   function selectSong(song: SongOption) {
-    root.style.transition = 'opacity 0.4s ease';
-    root.style.opacity    = '0';
-    setTimeout(() => { cleanup(); onSongSelect(song); }, 400);
+    // Start playback + reveal the canvas immediately
+    onSongSelect(song);
+    root.style.pointerEvents = 'none';
+    root.style.transition    = 'opacity 0.4s ease';
+    root.style.opacity       = '0';
+    setTimeout(cleanup, 400);
   }
 
   function snapTo(index: number) {
@@ -120,6 +127,9 @@ export function mountSphereSongSelect(
     const diff = ((raw - spinAngle) % 360 + 540) % 360 - 180;
     targetAngle = spinAngle + diff;
     updateActive();
+    const item = items[activeIndex];
+    if (item.kind === 'song') onHover(item.data);
+    else onLeave();
   }
 
   function updateActive() {
@@ -165,14 +175,26 @@ export function mountSphereSongSelect(
     if (!dragging) return;
     dragging = false;
     scene.style.cursor = 'grab';
-    snapTo(Math.round(-spinAngle / STEP));
+    // Only snap on a real drag. A stationary click is handled by the card's
+    // click listener — snapping here too would re-fire onHover (stop + restart
+    // the preview) and stomp the select that the click is about to do.
+    if (dragMoved > 5) snapTo(Math.round(-spinAngle / STEP));
   }
 
   scene.addEventListener('pointerdown', onPointerDown);
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup',   onPointerUp);
 
-  // Keyboard 
+  let wheelAccum = 0;
+  function onWheel(e: WheelEvent) {
+    e.preventDefault();
+    wheelAccum += e.deltaY;
+    if      (wheelAccum >  40) { snapTo(activeIndex + 1); wheelAccum = 0; }
+    else if (wheelAccum < -40) { snapTo(activeIndex - 1); wheelAccum = 0; }
+  }
+  scene.addEventListener('wheel', onWheel, { passive: false });
+
+  // Keyboard
 
   function onKeyDown(e: KeyboardEvent) {
     if      (e.key === 'ArrowRight') { e.preventDefault(); snapTo(activeIndex + 1); }
@@ -187,14 +209,26 @@ export function mountSphereSongSelect(
   }
   window.addEventListener('keydown', onKeyDown);
 
+  // Spinner on the active card while its preview is loading. Always clears the
+  // previous one so it tracks whichever card is currently focused.
+  let loadingEl: HTMLDivElement | null = null;
+  function setLoading(on: boolean) {
+    if (loadingEl) { loadingEl.classList.remove('sss-card--loading'); loadingEl = null; }
+    if (on) {
+      loadingEl = cardEls[activeIndex];
+      loadingEl?.classList.add('sss-card--loading');
+    }
+  }
+
   function cleanup() {
     cancelAnimationFrame(raf);
     scene.removeEventListener('pointerdown', onPointerDown);
+    scene.removeEventListener('wheel',        onWheel);
     window.removeEventListener('pointermove', onPointerMove);
     window.removeEventListener('pointerup',   onPointerUp);
     window.removeEventListener('keydown',     onKeyDown);
     root.remove();
   }
 
-  return cleanup;
+  return { cleanup, setLoading };
 }

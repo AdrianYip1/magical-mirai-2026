@@ -14,8 +14,8 @@ node_modules/
 dist/
 dist-ssr/
 
-# Env
-.env
+# Env (.env holds the TextAlive token which is committed so judges can build from source.
+# It's a client token that ships to the browser anyways)
 .env.local
 *.local
 
@@ -27,10 +27,10 @@ CLAUDE.local.md
 # Docs (planning files, not for submission)
 docs/
 
-# Large font files — download separately, see README
+# Source fonts. The app only loads MPLUS1-Black.typeface.json (committed); other
+# formats stay ignored so stray large fonts don't get committed.
 public/*.otf
 public/*.ttf
-public/*.typeface.json
 public/*.woff2
 
 # Editor

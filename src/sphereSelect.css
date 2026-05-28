@@ -68,6 +68,23 @@
     0 4px 28px rgba(0, 0, 0, 0.8);
 }
 
+.sss-card--loading::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid color-mix(in srgb, var(--c) 25%, transparent);
+  border-top-color: var(--c);
+  border-radius: 50%;
+  animation: sss-spin 0.7s linear infinite;
+}
+
+@keyframes sss-spin {
+  to { transform: rotate(360deg); }
+}
+
 .sss-card--utility {
   --c: #666;
   align-items: center;

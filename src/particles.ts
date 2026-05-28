@@ -50,13 +50,13 @@ const simMaterial = new THREE.RawShaderMaterial({
   vertexShader:   simVert,
   fragmentShader: simFrag,
   uniforms: {
-    uState:         { value: prevTex },
-    uTime:          { value: 0 },
-    uDelta:         { value: 0 },
-    uBeat:          { value: 0 },
-    uTargetTex:     { value: targetTex },
+    uState: { value: prevTex },
+    uTime: { value: 0 },
+    uDelta: { value: 0 },
+    uBeat: { value: 0 },
+    uTargetTex: { value: targetTex },
     uAssignmentTex: { value: assignmentTex },
-    uFadeRate:      { value: 0.25 },
+    uFadeRate: { value: 0.25 },
   },
 });
 
@@ -80,6 +80,12 @@ export function clearParticles(indices: Uint32Array) {
     assignmentData[p * 4 + 0] = 0.0;
     assignmentData[p * 4 + 1] = 0.0;
   }
+  assignmentTex.needsUpdate = true;
+}
+
+/** Deactivate every particle -> returns them all to the ambient curl flow. */
+export function clearAllParticles() {
+  assignmentData.fill(0);
   assignmentTex.needsUpdate = true;
 }
 
@@ -122,15 +128,15 @@ geometry.setAttribute('position', new THREE.BufferAttribute(dummyPos, 3));
 geometry.setAttribute('aUv', new THREE.BufferAttribute(uvs, 2));
 
 const renderMaterial = new THREE.ShaderMaterial({
-  vertexShader:   renderVert,
+  vertexShader: renderVert,
   fragmentShader: renderFrag,
-  transparent:    true,
-  depthWrite:     false,
-  blending:       THREE.AdditiveBlending,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
   uniforms: {
-    uState:         { value: prevTex },
-    uBeat:          { value: 0 },
-    uEnvMap:        { value: null },
+    uState: { value: prevTex },
+    uBeat: { value: 0 },
+    uEnvMap: { value: null },
     uAssignmentTex: { value: assignmentTex },
   },
 });

@@ -10,7 +10,7 @@ let loadedFont: Font | null = null;
 
 export function initLyrics(onReady: () => void) {
   const loader = new FontLoader();
-  loader.load('/MPLUS1-Black.typeface.json', (font) => {
+  loader.load(import.meta.env.BASE_URL + 'MPLUS1-Black.typeface.json', (font) => {
     loadedFont = font;
     onReady();
   });
