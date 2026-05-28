@@ -1,8 +1,9 @@
 import './style.css';
 import { Player, IPlayerApp, IWord, IPhrase, IBeat, IChar } from 'textalive-app-api';
-import { canvas, canvasWrapper, animate, glassInnerUniforms, glassOuterUniforms, renderer, scene, cubeCamera, cubeLargeCamera, triggerBeat } from './renderer';
-import { mountSongSelection } from './songSelect';
-import { initLyrics, setWord, setChar, buildLayout, clearPhrase } from './lyrics';
+import { canvas, animate, glassInnerUniforms, glassOuterUniforms, renderer, scene, cubeCamera, cubeLargeCamera, triggerBeat } from './renderer';
+import { mountSphereSongSelect } from './sphereSelect';
+import songs from './songs';
+import { initLyrics, setWord, setChar, buildLayout } from './lyrics';
 
 let fontReady = false;
 let videoReady = false;
@@ -21,7 +22,7 @@ const player = new Player({
   mediaElement: document.createElement('audio'),
 });
 
-mountSongSelection(canvasWrapper, undefined, (song) => {
+mountSphereSongSelect(songs, (song) => {
   canvas.style.display = 'block';
   player.createFromSongUrl(song.url, { video: song.videoIds ?? {} });
 });
