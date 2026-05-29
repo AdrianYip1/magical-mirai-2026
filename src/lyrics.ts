@@ -116,9 +116,10 @@ export function buildLayout(phrases: IPhrase[]) {
     const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
   }
 
-  const LINE_HEIGHT = 4.0;
-  const SPACING     = 0.5;
-  const MAX_WIDTH   = 14.0;
+  const LINE_HEIGHT  = 4.0;
+  const SPACING      = 0.5;   // gap between words
+  const CHAR_SPACING = 0.35;  // extra gap between characters within a word
+  const MAX_WIDTH    = 14.0;
 
   let poolOffset = 0;
 
@@ -133,7 +134,9 @@ export function buildLayout(phrases: IPhrase[]) {
     for (const word of words) {
       const geo = new TextGeometry(word.text, { font: loadedFont!, size: 2.0, depth: 0.4, curveSegments: 4 });
       geo.computeBoundingBox();
-      wordWidths.push(geo.boundingBox!.max.x - geo.boundingBox!.min.x);
+      const baseWidth = geo.boundingBox!.max.x - geo.boundingBox!.min.x;
+      const gaps      = Math.max(0, word.children.length - 1) * CHAR_SPACING;
+      wordWidths.push(baseWidth + gaps);
       geo.dispose();
     }
 
@@ -179,7 +182,7 @@ export function buildLayout(phrases: IPhrase[]) {
 
           const hue = ci / Math.max(chars.length - 1, 1);
           charMap.set(char, { geo, indices, hue });
-          charCursor += charWidth;
+          charCursor += charWidth + CHAR_SPACING;
         }
 
         wordMap.set(word, { chars: charMap });
