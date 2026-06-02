@@ -27,6 +27,7 @@
   transform-style: preserve-3d;
   cursor: grab;
   user-select: none;
+  touch-action: none;
 }
 
 .sss-inner {

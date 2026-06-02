@@ -185,30 +185,6 @@ export function mountSphereSongSelect(
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup',   onPointerUp);
 
-  let wheelAccum = 0;
-  function onWheel(e: WheelEvent) {
-    e.preventDefault();
-    wheelAccum += e.deltaY;
-    if      (wheelAccum >  40) { snapTo(activeIndex + 1); wheelAccum = 0; }
-    else if (wheelAccum < -40) { snapTo(activeIndex - 1); wheelAccum = 0; }
-  }
-  scene.addEventListener('wheel', onWheel, { passive: false });
-
-  // Keyboard
-
-  function onKeyDown(e: KeyboardEvent) {
-    if      (e.key === 'ArrowRight') { e.preventDefault(); snapTo(activeIndex + 1); }
-    else if (e.key === 'ArrowLeft')  { e.preventDefault(); snapTo(activeIndex - 1); }
-    else if (e.key === 'Enter') {
-      const item = items[activeIndex];
-      if      (item.kind === 'song')      selectSong(item.data);
-      else if (item.kind === 'settings')  onSettings();
-      else if (item.kind === 'language')  onLanguage();
-      else if (item.kind === 'credits')   onCredits();
-    }
-  }
-  window.addEventListener('keydown', onKeyDown);
-
   // Spinner on the active card while its preview is loading. Always clears the
   // previous one so it tracks whichever card is currently focused.
   let loadingEl: HTMLDivElement | null = null;
@@ -223,10 +199,8 @@ export function mountSphereSongSelect(
   function cleanup() {
     cancelAnimationFrame(raf);
     scene.removeEventListener('pointerdown', onPointerDown);
-    scene.removeEventListener('wheel',        onWheel);
     window.removeEventListener('pointermove', onPointerMove);
     window.removeEventListener('pointerup',   onPointerUp);
-    window.removeEventListener('keydown',     onKeyDown);
     root.remove();
   }
 

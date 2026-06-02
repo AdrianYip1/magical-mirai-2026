@@ -138,7 +138,7 @@ export function play(songUrl: string, onPlaying?: () => void, onError?: () => vo
   }, { once: true });
 
   const p = a.play();
-  if (p) p.then(() => fadeIn(songUrl, a)).catch(() => { /* autoplay blocked or dead url */ });
+  if (p) p.then(() => fadeIn(songUrl, a)).catch(() => { onError?.(); });
   else fadeIn(songUrl, a);
   return true;
 }
