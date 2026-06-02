@@ -73,9 +73,11 @@ export function mountSphereSongSelect(
     if (item.kind === 'song') {
       const { name, artist } = parseSong(item.data.title);
       const color = COLORS[songColorIdx++ % COLORS.length];
+      const thumbnail = item.data.thumbnail || '/assets/placeholder_miku.png';
       card.className    = 'sss-card';
       card.style.cssText = `--c:${color}; transform:${baseTransform};`;
       card.innerHTML    = `
+        <img src=${thumbnail} alt="${escapeHtml(name)}" />
         <div class="sss-name">${escapeHtml(name)}</div>
         <div class="sss-artist">${escapeHtml(artist)}</div>
       `;

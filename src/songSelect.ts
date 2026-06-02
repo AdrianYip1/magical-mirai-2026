@@ -8,6 +8,7 @@ export interface SongOption {
     lyricId?: number;
     lyricDiffId?: number;
   };
+  thumbnail: string;
 }
 
 export function createSongSelectionUI(
