@@ -83,18 +83,18 @@ function findChorusStart(): number {
   return 30000;
 }
 
-// ── Serialized song loader ─────────────────────────────────────────────────
+// Serialized song loader  
 // TextAlive's Player throws "createFrom* method calls cannot run in parallel"
 // if loads overlap, so we keep at most one load in flight. `desired` always
 // holds the latest request — rapid snaps coalesce down to wherever you land.
 
 let currentUrl: string | null = null;   // song currently loaded / loading
-let loading    = false;                  // a createFromSongUrl is in flight
-let ready      = false;                  // timer ready for currentUrl
-let previewing = false;                  // a TextAlive preview is playing
-let inPlayback = false;                   // the selected song is playing (not a menu preview)
-let awaitingSeek = false;                  // suppress lyrics until the seek-to-0 lands on select
-let loadStart  = 0;                       // perf timestamp of the current load (for timing logs)
+let loading = false; // a createFromSongUrl is in flight
+let ready = false; // timer ready for currentUrl
+let previewing = false; // a TextAlive preview is playing
+let inPlayback = false; // the selected song is playing (not a menu preview)
+let awaitingSeek = false; // suppress lyrics until the seek-to-0 lands on select
+let loadStart  = 0; // perf timestamp of the current load (for timing logs)
 let desired: { song: SongOption; cb: () => void } | null = null;
 
 // The focused song in the menu — its full data + lyric meshes are precomputed
@@ -123,14 +123,14 @@ function reconcile() {
   const { song, cb } = desired;
   if (currentUrl === song.url) {
     if (ready && !loading) { desired = null; cb(); }  // already loaded → act now
-    return;                                            // else: still loading / awaiting timer
+    return; // else: still loading / awaiting timer
   }
-  if (loading) return;                                 // busy elsewhere; finally() retries
-  loading    = true;
+  if (loading) return; // busy elsewhere; finally() retries
+  loading = true;
   currentUrl = song.url;
-  ready      = false;
+  ready = false;
 
-  // Drop the lyric diff — it's the source of the "loadDiff null" crash and only
+  // Drop the lyric diff-> it's the source of the "loadDiff null" crash and only
   // refines lyric timing; base lyrics still drive the particles.
   const { lyricDiffId, ...video } = song.videoIds ?? {};
   void lyricDiffId;
@@ -163,23 +163,23 @@ function hideLoading(gen: number) {
 
 const wheel = mountSphereSongSelect(
   wheelItems,
-  // selected → full playback from the start (precompute is likely already done)
+  // selected -> full playback from the start (precompute is likely already done)
   (song) => {
     previewAudio.stop();
     previewing = false;
     // Don't stop the player — it's already playing the preview, so seeking to 0
     // keeps audio going within the user's click (no autoplay re-block). The
     // awaitingSeek gate below suppresses the chorus lyrics until the seek lands.
-    clearAllParticles();           // wipe anything from the preview era
+    clearAllParticles(); // wipe anything from the preview era
     currentWord = currentChar = currentPhrase = null;  // re-fire lyrics from position 0
-    awaitingSeek = true;           // ignore lyrics until the seek-to-0 actually lands
+    awaitingSeek = true; // ignore lyrics until the seek-to-0 actually lands
     inPlayback = true;
     focusedUrl = song.url;
     canvas.style.display = 'block';
     requestLoad(song, () => {
       ensureMeshes();
       player.requestMediaSeek(0);
-      player.requestPlay();        // no-op if already playing; resumes from 0
+      player.requestPlay(); // no-op if already playing; resumes from 0
     });
   },
   () => { /* settings  - TODO */ },
@@ -210,12 +210,12 @@ const wheel = mountSphereSongSelect(
     // onError handler recovers by switching to the TextAlive preview.
     const poolOk = previewAudio.play(
       song.url,
-      () => hideLoading(gen),                                       // audible → drop spinner
-      () => { if (gen === previewGen) previewViaTextAlive(); },     // pool failed → recover now
+      () => hideLoading(gen), // audible → drop spinner
+      () => { if (gen === previewGen) previewViaTextAlive(); }, // pool failed → recover now
     );
 
-    if (poolOk) requestLoad(song, () => ensureMeshes());           // pool plays audio; just precompute
-    else        previewViaTextAlive();                             // no pool → TextAlive plays + precomputes
+    if (poolOk) requestLoad(song, () => ensureMeshes()); // pool plays audio; just precompute
+    else previewViaTextAlive(); // no pool → TextAlive plays + precomputes
   },
   // leave → stop audio; keep the focused song's precompute (harmless)
   () => {
@@ -278,6 +278,7 @@ player.addListener({
       glassInnerUniforms.uBeatIntensity.value = 1.0;
       glassOuterUniforms.uBeatIntensity.value = 1.0;
       if (player.findChorus(position)) triggerBeat(1.0);
+      wheel.beat(1.0);
     }
 
     const phrase = player.video.findPhrase(position);
