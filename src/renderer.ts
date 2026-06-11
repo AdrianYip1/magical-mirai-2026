@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SPHERE_RADIUS, MIN_VERTS, drawSphere } from './sphere';
 import { update as updateParticles, points as particlePoints } from './particles';
 import { auroraMesh, tickAurora } from './aurora';
+import { CUBE_INTERVAL, OUTER_SPHERE } from './perf';
 
 export const canvasWrapper = document.createElement('div');
 canvasWrapper.className = 'canvas-wrapper';
@@ -118,7 +119,12 @@ export function triggerBeat(strength: number) {
 }
 
 const clock = new THREE.Clock();
-let elapsed = 0;
+let elapsed  = 0;
+let cubeFrame = 0;
+
+if (!OUTER_SPHERE) {
+  largerSphereMesh.visible = false;
+}
 
 export function animate() {
   requestAnimationFrame(animate);
@@ -138,28 +144,39 @@ export function animate() {
 
   updateParticles(renderer, elapsed, delta, beatIntensity, cubeRenderTarget.texture);
 
+  const updateCube = (cubeFrame % CUBE_INTERVAL === 0);
+  cubeFrame++;
+
   // Cubemap passes — hide expensive objects that don't need to be reflected.
   sphereMesh.visible  = false;
   largerSphereMesh.visible = false;
   auroraMesh.visible  = false; // aurora is the main perf cost: skip 12 face renders
-  cubeCamera.update(renderer, scene);
+
+  if (updateCube) {
+    cubeCamera.update(renderer, scene);
+  }
   renderer.setRenderTarget(renderTarget);
   renderer.clear();
   renderer.render(scene, camera);
   glassInnerUniforms.uSceneTexture.value = renderTarget.texture;
 
-  cubeLargeCamera.update(renderer, scene);
-  renderer.setRenderTarget(renderLargerTarget);
-  renderer.clear();
-  renderer.render(scene, camera);
-  glassOuterUniforms.uSceneTexture.value = renderLargerTarget.texture;
+  if (OUTER_SPHERE) {
+    if (updateCube) {
+      cubeLargeCamera.update(renderer, scene);
+    }
+    renderer.setRenderTarget(renderLargerTarget);
+    renderer.clear();
+    renderer.render(scene, camera);
+    glassOuterUniforms.uSceneTexture.value = renderLargerTarget.texture;
+  }
 
-  // Restore for the final screen render (inner sphere intentionally hidden for now).
-  largerSphereMesh.visible = true;
-  auroraMesh.visible       = true;
+  // Restore for the final screen render.
+  if (OUTER_SPHERE) largerSphereMesh.visible = true;
+  auroraMesh.visible = true;
 
   renderer.setRenderTarget(null);
   renderer.clearDepth();
   renderer.render(fadeScene, fadeCamera);
   renderer.render(scene, camera);
+
 }

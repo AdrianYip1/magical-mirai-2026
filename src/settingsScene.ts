@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { activateWordParticles, clearParticles, setFadeRate } from './particles';
+import { activateWordParticles, clearParticles, setFadeRate, COUNT } from './particles';
 import { sampleSurface, getFont } from './lyrics';
 import { setVolume, getVolume } from './volume';
 import { getLanguage } from './language';
@@ -22,9 +22,10 @@ const LABEL_SIZE =  0.4;
 const LAYOUT_HALF_H = Math.max(LABEL_Y + LABEL_SIZE * 1.3, Math.abs(BAR_BOTTOM));
 const LAYOUT_HALF_W = BAR_HALF_W;
 
-const LABEL_COUNT   = 20_000;
-const OUTLINE_COUNT =  3_000;
-const FILL_COUNT    = 12_000;
+const SCALE         = COUNT / 65536;
+const LABEL_COUNT   = Math.round(20_000 * SCALE);
+const OUTLINE_COUNT = Math.round( 3_000 * SCALE);
+const FILL_COUNT    = Math.round(12_000 * SCALE);
 
 const labelIndices   = new Uint32Array(LABEL_COUNT);
 const outlineIndices = new Uint32Array(OUTLINE_COUNT);

@@ -7,7 +7,7 @@ import type { WheelItem, DiParticle } from './sphereSelect';
 import type { SongOption } from './songSelect';
 import songs from './songs';
 import { initLyrics, setWord, setChar, clearCurrentWord, clearPhrase, buildLayout, displayStaticText, clearStaticText, clearLyricMeshes } from './lyrics';
-import { clearAllParticles, activateWordParticles, setFadeRate } from './particles';
+import { clearAllParticles, activateWordParticles, setFadeRate, COUNT } from './particles';
 import * as previewAudio from './previewAudio';
 import { getVolume } from './volume';
 import { enterSettings, leaveSettings } from './settingsScene';
@@ -316,7 +316,7 @@ function triggerBack() {
 }
 
 function buildMenuTargets(menuParticles: DiParticle[]): { indices: Uint32Array; samples: Float32Array; colors: Float32Array } {
-  const TOTAL = 256 * 256;
+  const TOTAL = COUNT;
   const indices = new Uint32Array(TOTAL);
   const samples = new Float32Array(TOTAL * 4);
   const colors  = new Float32Array(TOTAL * 4);

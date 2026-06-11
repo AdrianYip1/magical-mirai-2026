@@ -10,7 +10,21 @@ uniform float uFadeRate;
 
 varying vec2 vUv;
 
-// Returns a random vec3 in [-1, 1] for use as a Perlin gradient
+#ifdef MOBILE
+
+// Analytical curl of F = (sin(y)*sin(z), sin(z)*sin(x), sin(x)*sin(y)).
+// Zero hash/noise evaluations — ~32x cheaper than FBM curl.
+vec3 curl(vec3 p) {
+    p = p * 0.08 + uTime * 0.06;
+    return vec3(
+        cos(p.y) * sin(p.z),
+        cos(p.z) * sin(p.x),
+        cos(p.x) * sin(p.y)
+    );
+}
+
+#else
+
 vec3 hash3(vec3 p) {
     p = vec3(
         dot(p, vec3(127.1, 311.7,  74.7)),
@@ -20,12 +34,9 @@ vec3 hash3(vec3 p) {
     return normalize(fract(sin(p) * 43758.5453) * 2.0 - 1.0);
 }
 
-// Perlin noise
 float noise(vec3 p) {
     vec3 i = floor(p);
     vec3 f = fract(p);
-
-    // Quintic interpolation 
     vec3 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
 
     float v000 = dot(hash3(i + vec3(0,0,0)), f - vec3(0,0,0));
@@ -59,6 +70,8 @@ vec3 curl(vec3 p) {
     float dFxdy = (fbm(p+vec3(0,e,0)) - fbm(p-vec3(0,e,0))) / (2.0*e);
     return vec3(dFzdy - dFydz, dFxdz - dFzdx, dFydx - dFxdy);
 }
+
+#endif
 
 vec3 respawn(vec2 seed) {
     return vec3(

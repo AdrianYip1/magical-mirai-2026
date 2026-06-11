@@ -1,13 +1,11 @@
 import * as THREE from 'three';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { FontLoader, Font } from 'three/addons/loaders/FontLoader.js';
-import { activateWordParticles, scatterParticlesInBox } from './particles';
+import { activateWordParticles, scatterParticlesInBox, COUNT } from './particles';
 import { IWord, IPhrase, IChar } from 'textalive-app-api';
 import { scene, glassInnerUniforms } from './renderer';
 import lyricGlassVert from './shaders/lyric-glass.vert?raw';
 import lyricGlassFrag from './shaders/lyric-glass.frag?raw';
-
-const COUNT = 256 * 256;
 
 let loadedFont: Font | null = null;
 
