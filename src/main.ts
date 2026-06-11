@@ -40,7 +40,6 @@ const player = new Player({
   mediaElement: document.createElement('audio'),
 });
 
-// Rebuild standalone preview <audio> for songs we resolved in a past session.
 previewAudio.hydrateFromCache(songs.map(s => s.url));
 
 // Audio unlock primer. Browsers block programmatic audio that isn't tied to a
@@ -86,11 +85,6 @@ function findChorusStart(): number {
   return 30000;
 }
 
-// Serialized song loader  
-// TextAlive's Player throws "createFrom* method calls cannot run in parallel"
-// if loads overlap, so we keep at most one load in flight. `desired` always
-// holds the latest request — rapid snaps coalesce down to wherever you land.
-
 let currentUrl: string | null = null;   // song currently loaded / loading
 let loading = false; // a createFromSongUrl is in flight
 let ready = false; // timer ready for currentUrl
@@ -101,14 +95,8 @@ let awaitingSeek = false; // suppress lyrics until the seek-to-0 lands on select
 let loadStart  = 0; // perf timestamp of the current load (for timing logs)
 let desired: { song: SongOption; cb: () => void } | null = null;
 
-// Generation counter for triggerBack timeouts. Incrementing this in the song
-// selection callback cancels any in-flight back transition so its deferred
-// canvas.style.display='none' / opacity='0' callbacks don't fire into a new
-// song and leave the canvas invisible.
 let backGen = 0;
 
-// The focused song in the menu — its full data + lyric meshes are precomputed
-// so selection is instant. Switching focus aborts the previous precompute.
 let focusedUrl:     string | null = null;
 let meshesBuiltUrl: string | null = null;
 
@@ -117,9 +105,6 @@ function requestLoad(song: SongOption, cb: () => void) {
   reconcile();
 }
 
-// Build the 3D lyric meshes for the focused song once its video has loaded.
-// Idempotent, and only builds for the song that's still focused — stale loads
-// (the user moved on) are skipped.
 function ensureMeshes() {
   if (!fontReady || !player.video || !focusedUrl) return;
   if (currentUrl !== focusedUrl) return;        // loaded video isn't the focused song
@@ -152,8 +137,6 @@ function reconcile() {
     .finally(() => { loading = false; reconcile(); });
 }
 
-// Preview loading spinner. A generation token ignores stale show/hide calls
-// when the user snaps faster than a preview can load.
 let setPreviewLoading: (on: boolean) => void = () => {};
 let previewGen      = 0;
 let spinnerTimer:    number | undefined;
@@ -171,7 +154,6 @@ function hideLoading(gen: number) {
   setPreviewLoading(false);
 }
 
-// Back button
 const backBtn = document.createElement('button');
 backBtn.id = 'back';
 backBtn.textContent = '← Back';
@@ -184,7 +166,6 @@ let wheel = remountMenu(songs.length);
 function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typeof mountSphereSongSelect> {
   const m = mountSphereSongSelect(
     wheelItems,
-    // selected -> full playback from the start (precompute is likely already done)
     (song) => {
       previewAudio.stop();
       previewing = false;
@@ -198,8 +179,6 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       selectedSongIndex = songs.findIndex(s => s.url === song.url);
       if (selectedSongIndex < 0) selectedSongIndex = songs.length;
       focusedUrl = song.url;
-      // Cancel any in-flight back-transition timeouts so their deferred
-      // canvas.style.display='none' can't fire and hide the canvas mid-song.
       ++backGen;
       canvas.style.transition = '';
       canvas.style.opacity    = '1';
@@ -213,7 +192,6 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       });
     },
     () => {
-      // settings
       utilityView       = 'settings';
       selectedSongIndex = songs.length;
       ++backGen;
@@ -225,26 +203,8 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       enterSettings(camera, canvas, controls);
     },
     () => {
-      // language
-      utilityView       = 'language';
-      selectedSongIndex = songs.length + 1;
-      ++backGen;
-      canvas.style.transition = '';
-      canvas.style.opacity    = '1';
-      canvas.style.display    = 'block';
-      backBtn.style.display   = 'block';
-      clearAllParticles(); clearLyricMeshes();
-      setFadeRate(0);
-      displayStaticText([
-        'LANGUAGE',
-        '',
-        'English  /  日本語',
-      ]);
-    },
-    () => {
-      // credits
       utilityView       = 'credits';
-      selectedSongIndex = songs.length + 2;
+      selectedSongIndex = songs.length + 1;
       ++backGen;
       canvas.style.transition = '';
       canvas.style.opacity    = '1';
@@ -263,17 +223,13 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
         'TextAlive App API',
       ]);
     },
-    // snap to song → two independent layers:
-    //   1. preview audio: instant if cached, else play once the full load is ready
-    //   2. precompute: always load full song + build lyric meshes (aborts on switch)
     (song) => {
       focusedUrl = song.url;
-      if (previewing) { previewing = false; player.requestStop(); }  // stop prior TextAlive preview
+      if (previewing) { previewing = false; player.requestStop(); }
 
       const gen = ++previewGen;
-      showLoadingSoon(gen);                                           // spinner if it lags >200ms
+      showLoadingSoon(gen);
 
-      // Fallback preview: load on the main player and play from the chorus.
       const previewViaTextAlive = () => requestLoad(song, () => {
         ensureMeshes();
         if (focusedUrl === song.url && gen === previewGen) {
@@ -285,29 +241,23 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
         }
       });
 
-      // Try instant cached audio. If the element errors (dead/expired URL), the
-      // onError handler recovers by switching to the TextAlive preview.
       const poolOk = previewAudio.play(
         song.url,
-        () => hideLoading(gen), // audible → drop spinner
-        () => { if (gen === previewGen) previewViaTextAlive(); }, // pool failed → recover now
+        () => hideLoading(gen),
+        () => { if (gen === previewGen) previewViaTextAlive(); },
       );
 
-      if (poolOk) requestLoad(song, () => ensureMeshes()); // pool plays audio; just precompute
-      else previewViaTextAlive(); // no pool → TextAlive plays + precomputes
+      if (poolOk) requestLoad(song, () => ensureMeshes());
+      else previewViaTextAlive();
     },
-    // leave → stop audio; keep the focused song's precompute (harmless)
     () => {
       previewAudio.stop();
       if (previewing) { previewing = false; player.requestStop(); }
-      ++previewGen;                                                  // invalidate pending spinner
+      ++previewGen;
       clearTimeout(spinnerTimer);
       clearTimeout(spinnerMaxTimer);
       setPreviewLoading(false);
     },
-    // Start focused on the Settings card so the user must scroll to reach a song.
-    // That scroll is the gesture that unlocks audio, so the preview can then play —
-    // and nothing loads or autoplays on startup (no "play not allowed" errors).
     returnIndex,
     hidden,
   );
@@ -326,10 +276,6 @@ function triggerBack() {
   backBtn.style.display = 'none';
 
   previewAudio.stop();
-  // Only call requestStop when the player has a live session — calling it before
-  // onTimerReady fires throws internally and halts the rest of triggerBack
-  // (back button disappears but menu never mounts).  timerReady stays true once
-  // set, so after any song fully loads this is always safe.
   if (wasInPlayback && (previewing || timerReady)) player.requestStop();
   previewing = false;
   currentWord = currentChar = currentPhrase = null;
@@ -338,11 +284,8 @@ function triggerBack() {
   if (wasUtility === 'settings') leaveSettings(camera, controls);
   else { clearStaticText(); setFadeRate(0.25); }
 
-  // If the user clicked back before the disintegration finished, tear it down
-  // immediately so it doesn't cover the back transition.
   wheel.abortDisintegration();
 
-  // Drive 3D particles toward the saved menu card positions
   const menuPtcls = getLastMenuParticles();
   clearAllParticles(); clearLyricMeshes();
   if (menuPtcls.length > 0) {
@@ -350,16 +293,10 @@ function triggerBack() {
     activateWordParticles(indices, samples, colors);
   }
 
-  // Mount menu invisibly so it is ready to reveal after convergence
   wheel = remountMenu(selectedSongIndex, true);
   const myWheel = wheel;
   const myGen   = ++backGen;
 
-  // Let particles visibly converge to the menu shape, then cross-fade the menu
-  // in as they settle so the cards appear to materialise out of the particles.
-  //   t=500ms  menu reveal starts (0.7 s)
-  //   t=700ms  canvas fade starts (0.5 s) → done at t=1200ms
-  // Each callback checks myGen so a new song entered mid-transition cancels them.
   setTimeout(() => {
     if (backGen !== myGen) return;
     myWheel.reveal();
@@ -384,7 +321,6 @@ function buildMenuTargets(menuParticles: DiParticle[]): { indices: Uint32Array; 
   const samples = new Float32Array(TOTAL * 4);
   const colors  = new Float32Array(TOTAL * 4);
 
-  // Precompute world positions for the menu sample points (one raycast each)
   const plane     = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   const raycaster = new THREE.Raycaster();
   const hit       = new THREE.Vector3();
@@ -406,7 +342,6 @@ function buildMenuTargets(menuParticles: DiParticle[]): { indices: Uint32Array; 
     }
   }
 
-  // Shuffle all particle indices so assignments are spatially randomised
   const pool = new Uint32Array(TOTAL);
   for (let i = 0; i < TOTAL; i++) pool[i] = i;
   for (let i = TOTAL - 1; i > 0; i--) {
@@ -414,7 +349,6 @@ function buildMenuTargets(menuParticles: DiParticle[]): { indices: Uint32Array; 
     const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
   }
 
-  // Assign every particle a target, cycling through the menu positions
   for (let i = 0; i < TOTAL; i++) {
     indices[i] = pool[i];
     const j = i % menuCount;
@@ -454,7 +388,6 @@ player.addListener({
     timerReady = true;
     ready      = true;
 
-    // Capture the resolved audio URL so future previews of this song are instant.
     const el  = player.mediaElement as HTMLAudioElement | null;
     const src = el?.currentSrc || el?.src || '';
     if (currentUrl && src) {
@@ -463,7 +396,7 @@ player.addListener({
       console.info('[preview] resolved', currentUrl, '→', src, `chorus=${chorusMs}ms`);
     }
 
-    reconcile();   // run the queued play action now that this song is ready
+    reconcile();
   },
 
   onTimeUpdate(position: number) {
@@ -481,14 +414,13 @@ player.addListener({
 
     const phrase = player.video.findPhrase(position);
     if (phrase !== currentPhrase) {
-      if (currentPhrase && inPlayback) clearPhrase(currentPhrase);
+      if (currentPhrase && inPlayback) {
+        const stale = currentPhrase;
+        setTimeout(() => clearPhrase(stale), 900);
+      }
       currentPhrase = phrase;
     }
 
-    // Only form lyric particles during real playback — not while a menu preview
-    // is running, or its words would linger into the song when you enter.
-    // While awaitingSeek, the player is still finishing its jump back to 0 after
-    // a preview at the chorus; ignore those stale (late-song) positions.
     if (inPlayback && !(awaitingSeek && position > 2000)) {
       awaitingSeek = false;
 

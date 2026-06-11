@@ -1,5 +1,7 @@
 export interface SongOption {
   title: string;
+  titleJa?: string;
+  artistJa?: string;
   url: string;
   videoIds?: {
     beatId?: number;

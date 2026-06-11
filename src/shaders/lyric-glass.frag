@@ -15,17 +15,16 @@ void main() {
     vec3  V        = normalize(uCameraPos - vWorldPos);
     float cosTheta = max(0.0, dot(N, V));
     float fres     = fresnel(cosTheta, 0.08);
+    float rim      = pow(1.0 - cosTheta, 1.5);
 
-    vec3 R            = reflect(-V, N);
-    vec3 reflectColor = textureCube(uEnvMap, R).rgb;
+    vec3 R        = reflect(-V, N);
+    vec3 envRefl  = textureCube(uEnvMap, R).rgb * fres * 2.0;
 
-    // Ice-white rim glow — edges only. Additive blending: values must stay ≤1
-    // so they don't overexpose when accumulated on top of particles.
-    float rim     = pow(1.0 - cosTheta, 2.2);
-    vec3  rimGlow = vec3(0.82, 0.94, 1.0) * rim * (0.9 + uBeatIntensity * 1.2);
+    vec3 glassBase = vec3(0.65, 0.88, 1.0);
+    vec3 rimGlow   = glassBase * rim * (1.5 + uBeatIntensity * 2.0);
 
-    vec3  color = reflectColor * fres + rimGlow;
-    float alpha = (fres * 0.15 + rim * 0.35) * uOpacity;
+    vec3  color = glassBase * 0.45 + envRefl + rimGlow;
+    float alpha = (0.30 + rim * 0.65) * uOpacity;
 
     gl_FragColor = vec4(color, alpha);
 }

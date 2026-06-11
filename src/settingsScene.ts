@@ -4,11 +4,11 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { activateWordParticles, clearParticles, setFadeRate } from './particles';
 import { sampleSurface, getFont } from './lyrics';
 import { setVolume, getVolume } from './volume';
+import { getLanguage } from './language';
 import { scene, glassInnerUniforms } from './renderer';
 import lyricGlassVert from './shaders/lyric-glass.vert?raw';
 import lyricGlassFrag from './shaders/lyric-glass.frag?raw';
 
-// ── Layout constants ──────────────────────────────────────────────────────────
 const BAR_HALF_W = 1.1;
 const BAR_LEFT   = -BAR_HALF_W;
 const BAR_RIGHT  =  BAR_HALF_W;
@@ -19,11 +19,9 @@ const BAR_HEIGHT = BAR_TOP    - BAR_BOTTOM;
 const LABEL_Y    =  0.35;
 const LABEL_SIZE =  0.4;
 
-// Worst-case half-extents used to compute a camera Z that fits everything.
 const LAYOUT_HALF_H = Math.max(LABEL_Y + LABEL_SIZE * 1.3, Math.abs(BAR_BOTTOM));
 const LAYOUT_HALF_W = BAR_HALF_W;
 
-// ── Particle index allocations ────────────────────────────────────────────────
 const LABEL_COUNT   = 20_000;
 const OUTLINE_COUNT =  3_000;
 const FILL_COUNT    = 12_000;
@@ -35,9 +33,26 @@ for (let i = 0; i < LABEL_COUNT;   i++) labelIndices[i]   = i;
 for (let i = 0; i < OUTLINE_COUNT; i++) outlineIndices[i] = LABEL_COUNT + i;
 for (let i = 0; i < FILL_COUNT;    i++) fillIndices[i]    = LABEL_COUNT + OUTLINE_COUNT + i;
 
-// ── Module state ──────────────────────────────────────────────────────────────
+function makeGlassMat(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    vertexShader:   lyricGlassVert,
+    fragmentShader: lyricGlassFrag,
+    uniforms: {
+      uCameraPos:     glassInnerUniforms.uCameraPos,
+      uEnvMap:        glassInnerUniforms.uEnvMap,
+      uBeatIntensity: glassInnerUniforms.uBeatIntensity,
+      uOpacity:       { value: 1.0 },
+    },
+    transparent: true,
+    depthWrite:  false,
+    blending:    THREE.AdditiveBlending,
+    renderOrder: 2,
+  });
+}
+
 let labelGeo:      THREE.BufferGeometry | null = null;
 let labelMesh:     THREE.Mesh           | null = null;
+let barMesh:       THREE.Mesh           | null = null;
 let fillSamples:   Float32Array | null = null;
 let prevFillCount  = -1;
 
@@ -50,8 +65,6 @@ let overlayEl:     HTMLDivElement   | null = null;
 let isDragging     = false;
 let barScreenL     = 0;
 let barScreenW     = 1;
-
-// ── Particle helpers ──────────────────────────────────────────────────────────
 
 function sampleOutline(): Float32Array {
   const out = new Float32Array(OUTLINE_COUNT * 4);
@@ -68,8 +81,6 @@ function sampleOutline(): Float32Array {
   return out;
 }
 
-// Random positions across the full bar sorted by x.
-// Activating the first N particles always fills from the left edge.
 function buildFillSamples(): Float32Array {
   const xs = new Float32Array(FILL_COUNT);
   const ys = new Float32Array(FILL_COUNT);
@@ -89,7 +100,6 @@ function buildFillSamples(): Float32Array {
   return out;
 }
 
-// Only updates the delta so already-settled particles aren't disturbed.
 function updateBar(v: number) {
   if (!fillSamples) return;
   const fillCount = Math.round(v * FILL_COUNT);
@@ -104,8 +114,6 @@ function updateBar(v: number) {
   }
   prevFillCount = fillCount;
 }
-
-// ── Overlay interaction ───────────────────────────────────────────────────────
 
 function worldToScreen(wx: number, wy: number, camera: THREE.Camera, el: HTMLCanvasElement) {
   const v = new THREE.Vector3(wx, wy, 0).project(camera);
@@ -151,8 +159,6 @@ function applyVolume(v: number) {
   updateBar(v);
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
-
 export function enterSettings(
   camera: THREE.PerspectiveCamera,
   canvasEl: HTMLCanvasElement,
@@ -163,9 +169,8 @@ export function enterSettings(
 
   orbitRef = orbitControls;
   orbitControls.enabled = false;
-  setFadeRate(0); // particles hold their targets indefinitely in settings
+  setFadeRate(0);
 
-  // Save and snap camera so the full layout is visible without user zoom.
   savedCamPos  = camera.position.clone();
   savedCamQuat = camera.quaternion.clone();
   savedTarget  = orbitControls.target.clone();
@@ -179,8 +184,7 @@ export function enterSettings(
   orbitControls.target.set(0, 0, 0);
   orbitControls.update();
 
-  // VOLUME label
-  labelGeo = new TextGeometry('VOLUME', {
+  labelGeo = new TextGeometry(getLanguage() === 'ja' ? '音量' : 'VOLUME', {
     font, size: LABEL_SIZE, depth: 0.18, curveSegments: 4,
   });
   labelGeo.computeBoundingBox();
@@ -191,32 +195,21 @@ export function enterSettings(
     0,
   );
   activateWordParticles(labelIndices, sampleSurface(labelGeo, LABEL_COUNT));
-
-  labelMesh = new THREE.Mesh(labelGeo, new THREE.ShaderMaterial({
-    vertexShader:   lyricGlassVert,
-    fragmentShader: lyricGlassFrag,
-    uniforms: {
-      uCameraPos:     glassInnerUniforms.uCameraPos,
-      uEnvMap:        glassInnerUniforms.uEnvMap,
-      uBeatIntensity: glassInnerUniforms.uBeatIntensity,
-      uOpacity:       { value: 1.0 },
-    },
-    transparent: true,
-    depthWrite:  false,
-    blending:    THREE.AdditiveBlending,
-    renderOrder: 2,
-  }));
+  labelMesh = new THREE.Mesh(labelGeo, makeGlassMat());
   scene.add(labelMesh);
 
-  // Bar outline
+  const barGeo = new THREE.BoxGeometry(BAR_WIDTH, BAR_HEIGHT, 0.06);
+  barGeo.translate((BAR_LEFT + BAR_RIGHT) / 2, (BAR_BOTTOM + BAR_TOP) / 2, 0);
+  barMesh = new THREE.Mesh(barGeo, makeGlassMat());
+  barMesh.renderOrder = 1;
+  scene.add(barMesh);
+
   activateWordParticles(outlineIndices, sampleOutline());
 
-  // Fill (sorted samples built once per enter)
   prevFillCount = 0;
   fillSamples   = buildFillSamples();
   updateBar(getVolume());
 
-  // Transparent overlay div for pointer interaction (projected after camera set)
   setupOverlay(camera, canvasEl);
 }
 
@@ -238,8 +231,8 @@ export function leaveSettings(
 
   if (labelMesh) { scene.remove(labelMesh); (labelMesh.material as THREE.ShaderMaterial).dispose(); labelMesh = null; }
   if (labelGeo)  { labelGeo.dispose(); labelGeo = null; }
+  if (barMesh)   { scene.remove(barMesh);   (barMesh.material   as THREE.ShaderMaterial).dispose(); barMesh   = null; }
 
-  // Restore camera
   if (savedCamPos && savedCamQuat && savedTarget) {
     camera.position.copy(savedCamPos);
     camera.quaternion.copy(savedCamQuat);
@@ -248,6 +241,6 @@ export function leaveSettings(
     savedCamPos = savedCamQuat = savedTarget = null;
   }
 
-  setFadeRate(0.25); // restore normal lyric fade behaviour
+  setFadeRate(0.25);
   if (orbitRef) { orbitRef.enabled = true; orbitRef = null; }
 }

@@ -1,5 +1,6 @@
 import './sphereSelect.css';
 import type { SongOption } from './songSelect';
+import { getLanguage, setLanguage } from './language';
 
 export type WheelItem =
   | { kind: 'song';     data: SongOption }
@@ -370,11 +371,50 @@ function runDisintegration(particles: DiParticle[], onDone: () => void): () => v
   return cancel;
 }
 
+function getUtilLabel(kind: string): string {
+  const lang = getLanguage();
+  if (kind === 'settings') return lang === 'en' ? 'Settings'        : '設定';
+  if (kind === 'language') return lang === 'en' ? 'Language: EN'    : '言語：JA';
+  if (kind === 'credits')  return lang === 'en' ? 'Credits'         : 'クレジット';
+  return kind;
+}
+
+let _cardEls: HTMLDivElement[] = [];
+let _items:   WheelItem[]      = [];
+
+function getSongNames(song: import('./songSelect').SongOption): { name: string; artist: string } {
+  const lang = getLanguage();
+  if (lang === 'ja') {
+    const { name, artist } = parseSong(song.title);
+    return {
+      name:   song.titleJa  ?? name,
+      artist: song.artistJa ?? artist,
+    };
+  }
+  return parseSong(song.title);
+}
+
+function updateUtilityLabels() {
+  _items.forEach((item, i) => {
+    const card = _cardEls[i];
+    if (!card) return;
+    if (item.kind === 'song') {
+      const { name, artist } = getSongNames(item.data);
+      const nameEl   = card.querySelector('.sss-name');
+      const artistEl = card.querySelector('.sss-artist');
+      if (nameEl)   nameEl.textContent   = name;
+      if (artistEl) artistEl.textContent = artist;
+    } else {
+      const el = card.querySelector('.sss-util-label');
+      if (el) el.textContent = getUtilLabel(item.kind);
+    }
+  });
+}
+
 export function mountSphereSongSelect(
   items: WheelItem[],
   onSongSelect: (song: SongOption) => void,
   onSettings: () => void,
-  onLanguage: () => void,
   onCredits: () => void,
   onHover: (song: SongOption) => void,
   onLeave: () => void,
@@ -385,7 +425,7 @@ export function mountSphereSongSelect(
   const STEP = 360 / n;
   initialIndex = ((initialIndex % n) + n) % n;
 
-  // DOM
+  _items = items;
 
   const root = document.createElement('div');
   root.className = 'sss-root';
@@ -401,9 +441,8 @@ export function mountSphereSongSelect(
   }
   document.body.appendChild(root);
 
-  // Cards
-
   const cardEls: HTMLDivElement[] = [];
+  _cardEls = cardEls;
   const loaders = new Map<number, ParticleLoader>();
   let songColorIdx = 0;
 
@@ -416,7 +455,7 @@ export function mountSphereSongSelect(
     const card = document.createElement('div');
 
     if (item.kind === 'song') {
-      const { name, artist } = parseSong(item.data.title);
+      const { name, artist } = getSongNames(item.data);
       const color = COLORS[songColorIdx++ % COLORS.length];
       const thumbnail = item.data.thumbnail || '/assets/placeholder_miku.png';
       card.className     = 'sss-card';
@@ -435,11 +474,7 @@ export function mountSphereSongSelect(
     } else {
       card.className     = 'sss-card sss-card--utility';
       card.style.cssText = `transform:${baseTransform};`;
-      card.innerHTML = item.kind === 'settings'
-        ? `<div class="sss-util-label">Settings</div>`
-        : item.kind === 'language'
-        ? `<div class="sss-util-label">Language</div>`
-        : `<div class="sss-util-label">Credits</div>`;
+      card.innerHTML     = `<div class="sss-util-label">${getUtilLabel(item.kind)}</div>`;
     }
 
     card.addEventListener('click', () => {
@@ -447,15 +482,16 @@ export function mountSphereSongSelect(
       if (i !== activeIndex) { snapTo(i); return; }
       if (item.kind === 'song') selectSong(item.data);
       else if (item.kind === 'settings') selectUtility(onSettings);
-      else if (item.kind === 'language') selectUtility(onLanguage);
+      else if (item.kind === 'language') {
+        setLanguage(getLanguage() === 'en' ? 'ja' : 'en');
+        updateUtilityLabels();
+      }
       else if (item.kind === 'credits') selectUtility(onCredits);
     });
 
     inner.appendChild(card);
     cardEls.push(card);
   });
-
-  // State
 
   let spinAngle   = -initialIndex * STEP;
   let targetAngle = -initialIndex * STEP;
@@ -521,8 +557,6 @@ export function mountSphereSongSelect(
     cardEls.forEach((el, i) => el.classList.toggle('sss-card--active', i === activeIndex));
   }
 
-  // Loop
-
   function tick() {
     spinAngle += (targetAngle - spinAngle) * 0.1;
     inner.style.transform = `rotateY(${spinAngle}deg)`;
@@ -537,8 +571,6 @@ export function mountSphereSongSelect(
       el.style.opacity    = '1';
     });
   }));
-
-  // Drag
 
   function onPointerDown(e: PointerEvent) {
     dragging = true; dragMoved = 0; lastX = e.clientX;

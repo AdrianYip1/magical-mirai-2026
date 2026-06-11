@@ -4,7 +4,6 @@ import { SPHERE_RADIUS, MIN_VERTS, drawSphere } from './sphere';
 import { update as updateParticles, points as particlePoints } from './particles';
 import { auroraMesh, tickAurora } from './aurora';
 
-// DOM
 export const canvasWrapper = document.createElement('div');
 canvasWrapper.className = 'canvas-wrapper';
 Object.assign(canvasWrapper.style, {
@@ -19,7 +18,6 @@ canvas.style.display = 'none';
 canvas.style.width = '100%';
 canvas.style.height = '100%';
 
-// Renderer
 export const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
@@ -30,7 +28,6 @@ renderer.autoClear = false;
 export const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight);
 export const renderLargerTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight);
 
-// Scene
 export const scene = new THREE.Scene();
 
 export const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
@@ -44,7 +41,7 @@ controls.dampingFactor = 0.05;
 controls.enableZoom = false;
 controls.target.set(0, 0, 0);
 controls.minDistance = 16;   // just outside the outer glass sphere (r=15)
-controls.maxDistance = 35;   // comfortable wide view
+controls.maxDistance = 35;
 controls.rotateSpeed = -1;
 // Prevent camera from orbiting behind the text (z=0 plane).
 // ±0.5π keeps the camera in the front hemisphere with a little side-view wiggle.
@@ -61,7 +58,6 @@ window.addEventListener('resize', () => {
   renderLargerTarget.setSize(window.innerWidth, window.innerHeight);
 });
 
-// Cube cameras
 export const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256);
 export const cubeCamera = new THREE.CubeCamera(0.1, 100, cubeRenderTarget);
 cubeCamera.position.set(0, 0, 0);
@@ -75,7 +71,6 @@ cubeLargeCamera.layers.set(0);
 cubeLargeCamera.layers.enable(1);
 scene.add(cubeLargeCamera);
 
-// Shader uniforms
 export const glassInnerUniforms = {
   uCameraPos:    { value: camera.position },
   uBeatIntensity:{ value: 0.0 },
@@ -92,10 +87,6 @@ export const glassOuterUniforms = {
   uRadius:       { value: SPHERE_RADIUS * 3 },
 };
 
-// Light cubes removed
-
-
-// Spheres
 export const sphereMesh = drawSphere(scene, MIN_VERTS, glassInnerUniforms, 1);
 sphereMesh.scale.setScalar(SPHERE_RADIUS);
 sphereMesh.renderOrder = 0;
@@ -104,7 +95,6 @@ export const largerSphereMesh = drawSphere(scene, MIN_VERTS, glassOuterUniforms,
 largerSphereMesh.scale.setScalar(SPHERE_RADIUS * 3);
 largerSphereMesh.renderOrder = 1;
 
-// Lighting
 scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 const dirLight = new THREE.DirectionalLight(0x88ccff, 1.5);
 dirLight.position.set(2, 4, 3);
@@ -113,10 +103,8 @@ scene.add(dirLight);
 // Aurora sky dome — on layer 0 so cube cameras capture it for glass reflections
 scene.add(auroraMesh);
 
-// Particles
 scene.add(particlePoints);
 
-// Fade quad — dims previous frame each tick to create motion trails
 const fadeScene  = new THREE.Scene();
 fadeScene.add(new THREE.Mesh(
   new THREE.PlaneGeometry(2, 2),
@@ -132,7 +120,6 @@ export function triggerBeat(strength: number) {
 const clock = new THREE.Clock();
 let elapsed = 0;
 
-// Animation loop
 export function animate() {
   requestAnimationFrame(animate);
   const delta = clock.getDelta();
@@ -149,7 +136,6 @@ export function animate() {
 
   tickAurora(elapsed);
 
-  // particle sim step (writes to its own render target)
   updateParticles(renderer, elapsed, delta, beatIntensity, cubeRenderTarget.texture);
 
   // Cubemap passes — hide expensive objects that don't need to be reflected.
@@ -172,7 +158,6 @@ export function animate() {
   largerSphereMesh.visible = true;
   auroraMesh.visible       = true;
 
-  // final render to screen — fade quad first, then scene on top
   renderer.setRenderTarget(null);
   renderer.clearDepth();
   renderer.render(fadeScene, fadeCamera);

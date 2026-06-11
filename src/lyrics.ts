@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { FontLoader, Font } from 'three/addons/loaders/FontLoader.js';
-import { activateWordParticles, clearParticles, scatterParticlesInBox } from './particles';
+import { activateWordParticles, scatterParticlesInBox } from './particles';
 import { IWord, IPhrase, IChar } from 'textalive-app-api';
 import { scene, glassInnerUniforms } from './renderer';
 import lyricGlassVert from './shaders/lyric-glass.vert?raw';
@@ -56,8 +56,6 @@ export function sampleSurface(geo: THREE.BufferGeometry, count: number): Float32
   return out;
 }
 
-// ── Glass mesh fade system ────────────────────────────────────────────────────
-
 type FadeEntry = { current: number; target: number };
 const fadingMeshes = new Map<THREE.Mesh, FadeEntry>();
 let animRaf = 0;
@@ -103,7 +101,6 @@ export function clearLyricMeshes() {
   animRaf = 0;
   for (const mesh of fadingMeshes.keys()) scene.remove(mesh);
   fadingMeshes.clear();
-  // Also instantly remove any mesh still in scene from previous word
   if (currentDisplayedWord) {
     for (const [, pd] of phraseData) {
       const wd = pd.words.get(currentDisplayedWord);
@@ -132,8 +129,6 @@ export function clearCurrentWord() {
   currentDisplayedWord = null;
 }
 
-// ── Per-char material factory ─────────────────────────────────────────────────
-
 function makeCharMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     vertexShader:   lyricGlassVert,
@@ -150,8 +145,6 @@ function makeCharMaterial(): THREE.ShaderMaterial {
     renderOrder: 2,
   });
 }
-
-// ── Data types ────────────────────────────────────────────────────────────────
 
 type CharData = {
   geo:     THREE.BufferGeometry;
@@ -171,13 +164,10 @@ type PhraseData = {
 const phraseData = new Map<IPhrase, PhraseData>();
 let currentDisplayedWord: IWord | null = null;
 
-// ── Public API ────────────────────────────────────────────────────────────────
-
 export function setWord(word: IWord) {
   for (const [, pd] of phraseData) {
     const wd = pd.words.get(word);
     if (wd) {
-      // Fade out the previous word's glass meshes
       if (currentDisplayedWord && currentDisplayedWord !== word) {
         for (const [, prevPd] of phraseData) {
           const prevWd = prevPd.words.get(currentDisplayedWord);
@@ -191,7 +181,6 @@ export function setWord(word: IWord) {
       }
       currentDisplayedWord = word;
 
-      // Activate particles and fade in glass for each char
       for (const [, cd] of wd.chars) {
         cd.geo.computeBoundingBox();
         const bb  = cd.geo.boundingBox!;
@@ -221,13 +210,10 @@ export function clearPhrase(phrase: IPhrase) {
   if (!pd) return;
   for (const [, wd] of pd.words) {
     for (const [, cd] of wd.chars) {
-      clearParticles(cd.indices);
       if (cd.mesh) fadeOut(cd.mesh);
     }
   }
 }
-
-// ── Static text (credits / language screens) ─────────────────────────────────
 
 let staticGeos:   THREE.BufferGeometry[] = [];
 let staticMeshes: THREE.Mesh[]           = [];
@@ -312,12 +298,9 @@ export function displayStaticText(lines: string[]) {
   }
 }
 
-// ── Build layout ──────────────────────────────────────────────────────────────
-
 export function buildLayout(phrases: IPhrase[]) {
   if (!loadedFont) return;
 
-  // Dispose previous meshes and geometries
   clearLyricMeshes();
   phraseData.forEach(pd => pd.words.forEach(wd => wd.chars.forEach(cd => {
     if (cd.mesh) {
@@ -348,7 +331,6 @@ export function buildLayout(phrases: IPhrase[]) {
     const phraseChars = words.reduce((s, w) => s + Math.max(w.children.length, 1), 0);
     const perChar     = Math.max(1, Math.floor(COUNT / Math.max(phraseChars, 1)));
 
-    // pass 1: measure word widths for line wrapping
     const wordWidths: number[] = [];
     for (const word of words) {
       const geo = new TextGeometry(word.text, { font: loadedFont!, size: 2.0, depth: 0.4, curveSegments: 4 });
@@ -359,7 +341,6 @@ export function buildLayout(phrases: IPhrase[]) {
       geo.dispose();
     }
 
-    // pass 2: line wrap
     const lines: number[][] = [[]];
     let lineWidth = 0;
     for (let j = 0; j < words.length; j++) {
