@@ -73,8 +73,7 @@ for (const ev of ['pointerdown', 'keydown'] as const) {
 const wheelItems: WheelItem[] = [
   ...songs.map(s => ({ kind: 'song' as const, data: s })),
   { kind: 'settings' as const },
-  { kind: 'language' as const },
-  { kind: 'credits' as const},
+  { kind: 'credits' as const },
 ];
 
 function findChorusStart(): number {
@@ -90,7 +89,7 @@ let loading = false; // a createFromSongUrl is in flight
 let ready = false; // timer ready for currentUrl
 let previewing = false; // a TextAlive preview is playing
 let inPlayback   = false; // the selected song is playing (not a menu preview)
-let utilityView: 'settings' | 'credits' | 'language' | null = null;
+let utilityView: 'settings' | 'credits' | null = null;
 let awaitingSeek = false; // suppress lyrics until the seek-to-0 lands on select
 let loadStart  = 0; // perf timestamp of the current load (for timing logs)
 let desired: { song: SongOption; cb: () => void } | null = null;

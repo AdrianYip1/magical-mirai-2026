@@ -1,11 +1,10 @@
 import './sphereSelect.css';
 import type { SongOption } from './songSelect';
-import { getLanguage, setLanguage } from './language';
+import { getLanguage } from './language';
 
 export type WheelItem =
   | { kind: 'song';     data: SongOption }
   | { kind: 'settings' }
-  | { kind: 'language' }
   | { kind: 'credits'}
 
 function parseSong(raw: string): { name: string; artist: string } {
@@ -373,9 +372,8 @@ function runDisintegration(particles: DiParticle[], onDone: () => void): () => v
 
 function getUtilLabel(kind: string): string {
   const lang = getLanguage();
-  if (kind === 'settings') return lang === 'en' ? 'Settings'        : '設定';
-  if (kind === 'language') return lang === 'en' ? 'Language: EN'    : '言語：JA';
-  if (kind === 'credits')  return lang === 'en' ? 'Credits'         : 'クレジット';
+  if (kind === 'settings') return lang === 'en' ? 'Settings' : '設定';
+  if (kind === 'credits')  return lang === 'en' ? 'Credits'  : 'クレジット';
   return kind;
 }
 
@@ -585,10 +583,6 @@ export function mountSphereSongSelect(
       const item = items[activeIndex];
       if (item.kind === 'song') selectSong(item.data);
       else if (item.kind === 'settings') selectUtility(onSettings);
-      else if (item.kind === 'language') {
-        setLanguage(getLanguage() === 'en' ? 'ja' : 'en');
-        updateUtilityLabels();
-      }
       else if (item.kind === 'credits') selectUtility(onCredits);
     }
   }

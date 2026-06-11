@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { activateWordParticles, clearParticles, setFadeRate, COUNT } from './particles';
 import { sampleSurface, getFont } from './lyrics';
 import { setVolume, getVolume } from './volume';
-import { getLanguage } from './language';
+import { getLanguage, setLanguage } from './language';
 import { scene, glassInnerUniforms } from './renderer';
 import lyricGlassVert from './shaders/lyric-glass.vert?raw';
 import lyricGlassFrag from './shaders/lyric-glass.frag?raw';
@@ -19,20 +19,37 @@ const BAR_HEIGHT = BAR_TOP    - BAR_BOTTOM;
 const LABEL_Y    =  0.35;
 const LABEL_SIZE =  0.4;
 
-const LAYOUT_HALF_H = Math.max(LABEL_Y + LABEL_SIZE * 1.3, Math.abs(BAR_BOTTOM));
-const LAYOUT_HALF_W = BAR_HALF_W;
+const LANG_BTN_Y    = -0.78;
+const LANG_BTN_SIZE =  0.30;
+const LANG_EN_X     = -0.52;
+const LANG_JA_X     =  0.52;
+
+const CONTENT_TOP    = LABEL_Y    + LABEL_SIZE    * 0.6;
+const CONTENT_BOTTOM = LANG_BTN_Y - LANG_BTN_SIZE * 0.6;
+const CONTENT_MID_Y  = (CONTENT_TOP + CONTENT_BOTTOM) / 2;
+const CONTENT_HALF_H = (CONTENT_TOP - CONTENT_BOTTOM) / 2;
+const LAYOUT_HALF_W  = BAR_HALF_W;
 
 const SCALE         = COUNT / 65536;
 const LABEL_COUNT   = Math.round(20_000 * SCALE);
 const OUTLINE_COUNT = Math.round( 3_000 * SCALE);
 const FILL_COUNT    = Math.round(12_000 * SCALE);
+const LANG_EN_COUNT = Math.round( 6_000 * SCALE);
+const LANG_JA_COUNT = Math.round( 6_000 * SCALE);
+
+const LANG_EN_BASE = LABEL_COUNT + OUTLINE_COUNT + FILL_COUNT;
+const LANG_JA_BASE = LANG_EN_BASE + LANG_EN_COUNT;
 
 const labelIndices   = new Uint32Array(LABEL_COUNT);
 const outlineIndices = new Uint32Array(OUTLINE_COUNT);
 const fillIndices    = new Uint32Array(FILL_COUNT);
+const langEnIndices  = new Uint32Array(LANG_EN_COUNT);
+const langJaIndices  = new Uint32Array(LANG_JA_COUNT);
 for (let i = 0; i < LABEL_COUNT;   i++) labelIndices[i]   = i;
 for (let i = 0; i < OUTLINE_COUNT; i++) outlineIndices[i] = LABEL_COUNT + i;
 for (let i = 0; i < FILL_COUNT;    i++) fillIndices[i]    = LABEL_COUNT + OUTLINE_COUNT + i;
+for (let i = 0; i < LANG_EN_COUNT; i++) langEnIndices[i]  = LANG_EN_BASE + i;
+for (let i = 0; i < LANG_JA_COUNT; i++) langJaIndices[i]  = LANG_JA_BASE + i;
 
 function makeGlassMat(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
@@ -51,21 +68,28 @@ function makeGlassMat(): THREE.ShaderMaterial {
   });
 }
 
-let labelGeo:      THREE.BufferGeometry | null = null;
-let labelMesh:     THREE.Mesh           | null = null;
-let barMesh:       THREE.Mesh           | null = null;
-let fillSamples:   Float32Array | null = null;
-let prevFillCount  = -1;
+let labelGeo:  THREE.BufferGeometry | null = null;
+let labelMesh: THREE.Mesh           | null = null;
+let barMesh:   THREE.Mesh           | null = null;
+let fillSamples:  Float32Array | null = null;
+let prevFillCount = -1;
 
-let savedCamPos:   THREE.Vector3    | null = null;
-let savedCamQuat:  THREE.Quaternion | null = null;
-let savedTarget:   THREE.Vector3    | null = null;
+let langEnGeo:  THREE.BufferGeometry | null = null;
+let langJaGeo:  THREE.BufferGeometry | null = null;
+let langEnMesh: THREE.Mesh | null = null;
+let langJaMesh: THREE.Mesh | null = null;
+let langEnOverlay: HTMLDivElement | null = null;
+let langJaOverlay: HTMLDivElement | null = null;
 
-let orbitRef:      OrbitControls    | null = null;
-let overlayEl:     HTMLDivElement   | null = null;
-let isDragging     = false;
-let barScreenL     = 0;
-let barScreenW     = 1;
+let savedCamPos:  THREE.Vector3    | null = null;
+let savedCamQuat: THREE.Quaternion | null = null;
+let savedTarget:  THREE.Vector3    | null = null;
+
+let orbitRef:  OrbitControls  | null = null;
+let overlayEl: HTMLDivElement | null = null;
+let isDragging = false;
+let barScreenL = 0;
+let barScreenW = 1;
 
 function sampleOutline(): Float32Array {
   const out = new Float32Array(OUTLINE_COUNT * 4);
@@ -75,8 +99,8 @@ function sampleOutline(): Float32Array {
     let x: number, y: number;
     if      (edge === 0) { x = BAR_LEFT  + t * BAR_WIDTH;  y = BAR_BOTTOM; }
     else if (edge === 1) { x = BAR_LEFT  + t * BAR_WIDTH;  y = BAR_TOP;    }
-    else if (edge === 2) { x = BAR_LEFT;  y = BAR_BOTTOM   + t * BAR_HEIGHT; }
-    else                 { x = BAR_RIGHT; y = BAR_BOTTOM   + t * BAR_HEIGHT; }
+    else if (edge === 2) { x = BAR_LEFT;  y = BAR_BOTTOM + t * BAR_HEIGHT; }
+    else                 { x = BAR_RIGHT; y = BAR_BOTTOM + t * BAR_HEIGHT; }
     out[i * 4] = x; out[i * 4 + 1] = y;
   }
   return out;
@@ -91,7 +115,6 @@ function buildFillSamples(): Float32Array {
   }
   const order = Array.from({ length: FILL_COUNT }, (_, i) => i);
   order.sort((a, b) => xs[a] - xs[b]);
-
   const out = new Float32Array(FILL_COUNT * 4);
   for (let i = 0; i < FILL_COUNT; i++) {
     const j = order[i];
@@ -114,6 +137,21 @@ function updateBar(v: number) {
     clearParticles(fillIndices.subarray(fillCount, prevFillCount));
   }
   prevFillCount = fillCount;
+}
+
+function updateLangParticles() {
+  const lang = getLanguage();
+  if (lang === 'en') {
+    if (langEnGeo) activateWordParticles(langEnIndices, sampleSurface(langEnGeo, LANG_EN_COUNT));
+    clearParticles(langJaIndices);
+    if (langEnMesh) (langEnMesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = 1.0;
+    if (langJaMesh) (langJaMesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = 0.3;
+  } else {
+    if (langJaGeo) activateWordParticles(langJaIndices, sampleSurface(langJaGeo, LANG_JA_COUNT));
+    clearParticles(langEnIndices);
+    if (langEnMesh) (langEnMesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = 0.3;
+    if (langJaMesh) (langJaMesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = 1.0;
+  }
 }
 
 function worldToScreen(wx: number, wy: number, camera: THREE.Camera, el: HTMLCanvasElement) {
@@ -147,6 +185,30 @@ function setupOverlay(camera: THREE.Camera, canvasEl: HTMLCanvasElement) {
   window.addEventListener('pointerup',     onUp);
 }
 
+function setupLangOverlays(camera: THREE.Camera, canvasEl: HTMLCanvasElement) {
+  const enPos = worldToScreen(LANG_EN_X, LANG_BTN_Y, camera, canvasEl);
+  const jaPos = worldToScreen(LANG_JA_X, LANG_BTN_Y, camera, canvasEl);
+  const W = 100, H = 60;
+
+  langEnOverlay = document.createElement('div');
+  Object.assign(langEnOverlay.style, {
+    position: 'fixed', cursor: 'pointer', zIndex: '20', touchAction: 'none',
+    left: `${enPos.x - W / 2}px`, top: `${enPos.y - H / 2}px`,
+    width: `${W}px`, height: `${H}px`,
+  });
+  document.body.appendChild(langEnOverlay);
+  langEnOverlay.addEventListener('pointerdown', () => { setLanguage('en'); updateLangParticles(); });
+
+  langJaOverlay = document.createElement('div');
+  Object.assign(langJaOverlay.style, {
+    position: 'fixed', cursor: 'pointer', zIndex: '20', touchAction: 'none',
+    left: `${jaPos.x - W / 2}px`, top: `${jaPos.y - H / 2}px`,
+    width: `${W}px`, height: `${H}px`,
+  });
+  document.body.appendChild(langJaOverlay);
+  langJaOverlay.addEventListener('pointerdown', () => { setLanguage('ja'); updateLangParticles(); });
+}
+
 function fromPointerX(clientX: number): number {
   return Math.max(0, Math.min(1, (clientX - barScreenL) / barScreenW));
 }
@@ -178,13 +240,15 @@ export function enterSettings(
 
   const fovHalf = (camera.fov / 2) * (Math.PI / 180);
   const aspect  = canvasEl.clientWidth / canvasEl.clientHeight;
-  const zForH   = LAYOUT_HALF_H / Math.tan(fovHalf) * 1.25;
-  const zForW   = LAYOUT_HALF_W / (Math.tan(fovHalf) * aspect) * 1.25;
-  camera.position.set(0, 0, Math.max(zForH, zForW, 3));
+  const zForH   = CONTENT_HALF_H / Math.tan(fovHalf) * 1.7;
+  const zForW   = LAYOUT_HALF_W  / (Math.tan(fovHalf) * aspect) * 1.7;
+  const z = Math.max(zForH, zForW, 3);
+  camera.position.set(0, CONTENT_MID_Y, z);
   camera.quaternion.identity();
-  orbitControls.target.set(0, 0, 0);
+  orbitControls.target.set(0, CONTENT_MID_Y, 0);
   orbitControls.update();
 
+  // Volume label
   labelGeo = new TextGeometry(getLanguage() === 'ja' ? '音量' : 'VOLUME', {
     font, size: LABEL_SIZE, depth: 0.18, curveSegments: 4,
   });
@@ -199,6 +263,7 @@ export function enterSettings(
   labelMesh = new THREE.Mesh(labelGeo, makeGlassMat());
   scene.add(labelMesh);
 
+  // Volume bar
   const barGeo = new THREE.BoxGeometry(BAR_WIDTH, BAR_HEIGHT, 0.06);
   barGeo.translate((BAR_LEFT + BAR_RIGHT) / 2, (BAR_BOTTOM + BAR_TOP) / 2, 0);
   barMesh = new THREE.Mesh(barGeo, makeGlassMat());
@@ -211,7 +276,34 @@ export function enterSettings(
   fillSamples   = buildFillSamples();
   updateBar(getVolume());
 
+  // Language toggle — EN
+  langEnGeo = new TextGeometry('EN', { font, size: LANG_BTN_SIZE, depth: 0.10, curveSegments: 4 });
+  langEnGeo.computeBoundingBox();
+  const enBb = langEnGeo.boundingBox!;
+  langEnGeo.translate(
+    -(enBb.min.x + enBb.max.x) / 2 + LANG_EN_X,
+    -(enBb.min.y + enBb.max.y) / 2 + LANG_BTN_Y,
+    -(enBb.min.z + enBb.max.z) / 2,
+  );
+  langEnMesh = new THREE.Mesh(langEnGeo, makeGlassMat());
+  scene.add(langEnMesh);
+
+  // Language toggle — JA
+  langJaGeo = new TextGeometry('JA', { font, size: LANG_BTN_SIZE, depth: 0.10, curveSegments: 4 });
+  langJaGeo.computeBoundingBox();
+  const jaBb = langJaGeo.boundingBox!;
+  langJaGeo.translate(
+    -(jaBb.min.x + jaBb.max.x) / 2 + LANG_JA_X,
+    -(jaBb.min.y + jaBb.max.y) / 2 + LANG_BTN_Y,
+    -(jaBb.min.z + jaBb.max.z) / 2,
+  );
+  langJaMesh = new THREE.Mesh(langJaGeo, makeGlassMat());
+  scene.add(langJaMesh);
+
+  updateLangParticles();
+
   setupOverlay(camera, canvasEl);
+  setupLangOverlays(camera, canvasEl);
 }
 
 export function leaveSettings(
@@ -226,13 +318,24 @@ export function leaveSettings(
     overlayEl = null;
   }
 
+  if (langEnOverlay) { langEnOverlay.remove(); langEnOverlay = null; }
+  if (langJaOverlay) { langJaOverlay.remove(); langJaOverlay = null; }
+
   isDragging    = false;
   fillSamples   = null;
   prevFillCount = -1;
 
   if (labelMesh) { scene.remove(labelMesh); (labelMesh.material as THREE.ShaderMaterial).dispose(); labelMesh = null; }
   if (labelGeo)  { labelGeo.dispose(); labelGeo = null; }
-  if (barMesh)   { scene.remove(barMesh);   (barMesh.material   as THREE.ShaderMaterial).dispose(); barMesh   = null; }
+  if (barMesh)   { scene.remove(barMesh); (barMesh.material as THREE.ShaderMaterial).dispose(); barMesh = null; }
+
+  if (langEnMesh) { scene.remove(langEnMesh); (langEnMesh.material as THREE.ShaderMaterial).dispose(); langEnMesh = null; }
+  if (langEnGeo)  { langEnGeo.dispose(); langEnGeo = null; }
+  if (langJaMesh) { scene.remove(langJaMesh); (langJaMesh.material as THREE.ShaderMaterial).dispose(); langJaMesh = null; }
+  if (langJaGeo)  { langJaGeo.dispose(); langJaGeo = null; }
+
+  clearParticles(langEnIndices);
+  clearParticles(langJaIndices);
 
   if (savedCamPos && savedCamQuat && savedTarget) {
     camera.position.copy(savedCamPos);
