@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SPHERE_RADIUS, MIN_VERTS, drawSphere } from './sphere';
 import { update as updateParticles, points as particlePoints } from './particles';
+import { auroraMesh, tickAurora } from './aurora';
 
 // DOM
 export const canvasWrapper = document.createElement('div');
@@ -33,18 +34,24 @@ export const renderLargerTarget = new THREE.WebGLRenderTarget(window.innerWidth,
 export const scene = new THREE.Scene();
 
 export const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(0, 0, 3);
+camera.position.set(0, 0, 22);
 camera.layers.enable(1);
 camera.layers.enable(2);
 
 export const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
-controls.enableZoom = true;
+controls.enableZoom = false;
 controls.target.set(0, 0, 0);
-controls.minDistance = 0;
-controls.maxDistance = 6 * SPHERE_RADIUS;
+controls.minDistance = 16;   // just outside the outer glass sphere (r=15)
+controls.maxDistance = 35;   // comfortable wide view
 controls.rotateSpeed = -1;
+// Prevent camera from orbiting behind the text (z=0 plane).
+// ±0.5π keeps the camera in the front hemisphere with a little side-view wiggle.
+controls.minAzimuthAngle = -Math.PI * 0.5;
+controls.maxAzimuthAngle =  Math.PI * 0.5;
+controls.minPolarAngle   =  Math.PI * 0.2;
+controls.maxPolarAngle   =  Math.PI * 0.8;
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -103,6 +110,9 @@ const dirLight = new THREE.DirectionalLight(0x88ccff, 1.5);
 dirLight.position.set(2, 4, 3);
 scene.add(dirLight);
 
+// Aurora sky dome — on layer 0 so cube cameras capture it for glass reflections
+scene.add(auroraMesh);
+
 // Particles
 scene.add(particlePoints);
 
@@ -137,12 +147,15 @@ export function animate() {
   glassInnerUniforms.uBeatIntensity.value = beatIntensity;
   glassOuterUniforms.uBeatIntensity.value = beatIntensity;
 
+  tickAurora(elapsed);
+
   // particle sim step (writes to its own render target)
   updateParticles(renderer, elapsed, delta, beatIntensity, cubeRenderTarget.texture);
 
-  // sphere passes (kept for when spheres are re-enabled)
-  sphereMesh.visible = false;
+  // Cubemap passes — hide expensive objects that don't need to be reflected.
+  sphereMesh.visible  = false;
   largerSphereMesh.visible = false;
+  auroraMesh.visible  = false; // aurora is the main perf cost: skip 12 face renders
   cubeCamera.update(renderer, scene);
   renderer.setRenderTarget(renderTarget);
   renderer.clear();
@@ -154,6 +167,10 @@ export function animate() {
   renderer.clear();
   renderer.render(scene, camera);
   glassOuterUniforms.uSceneTexture.value = renderLargerTarget.texture;
+
+  // Restore for the final screen render (inner sphere intentionally hidden for now).
+  largerSphereMesh.visible = true;
+  auroraMesh.visible       = true;
 
   // final render to screen — fade quad first, then scene on top
   renderer.setRenderTarget(null);

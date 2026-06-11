@@ -6,8 +6,8 @@ import { mountSphereSongSelect, getLastMenuParticles } from './sphereSelect';
 import type { WheelItem, DiParticle } from './sphereSelect';
 import type { SongOption } from './songSelect';
 import songs from './songs';
-import { initLyrics, setWord, setChar, buildLayout, displayStaticText, clearStaticText } from './lyrics';
-import { clearAllParticles, activateWordParticles } from './particles';
+import { initLyrics, setWord, setChar, clearCurrentWord, clearPhrase, buildLayout, displayStaticText, clearStaticText, clearLyricMeshes } from './lyrics';
+import { clearAllParticles, activateWordParticles, setFadeRate } from './particles';
 import * as previewAudio from './previewAudio';
 import { getVolume } from './volume';
 import { enterSettings, leaveSettings } from './settingsScene';
@@ -191,7 +191,7 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       // Don't stop the player — it's already playing the preview, so seeking to 0
       // keeps audio going within the user's click (no autoplay re-block). The
       // awaitingSeek gate below suppresses the chorus lyrics until the seek lands.
-      clearAllParticles(); // wipe anything from the preview era
+      clearAllParticles(); clearLyricMeshes(); // wipe anything from the preview era
       currentWord = currentChar = currentPhrase = null;  // re-fire lyrics from position 0
       awaitingSeek = true; // ignore lyrics until the seek-to-0 actually lands
       inPlayback = true;
@@ -221,7 +221,7 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       canvas.style.opacity    = '1';
       canvas.style.display    = 'block';
       backBtn.style.display   = 'block';
-      clearAllParticles();
+      clearAllParticles(); clearLyricMeshes();
       enterSettings(camera, canvas, controls);
     },
     () => {
@@ -233,7 +233,8 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       canvas.style.opacity    = '1';
       canvas.style.display    = 'block';
       backBtn.style.display   = 'block';
-      clearAllParticles();
+      clearAllParticles(); clearLyricMeshes();
+      setFadeRate(0);
       displayStaticText([
         'LANGUAGE',
         '',
@@ -249,7 +250,8 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       canvas.style.opacity    = '1';
       canvas.style.display    = 'block';
       backBtn.style.display   = 'block';
-      clearAllParticles();
+      clearAllParticles(); clearLyricMeshes();
+      setFadeRate(0);
       displayStaticText([
         'HOLOFRAGMENT',
         '',
@@ -334,7 +336,7 @@ function triggerBack() {
   desired = null; // cancel any queued load callback so the song doesn't start after going back
 
   if (wasUtility === 'settings') leaveSettings(camera, controls);
-  else clearStaticText(); // credits/language used displayStaticText
+  else { clearStaticText(); setFadeRate(0.25); }
 
   // If the user clicked back before the disintegration finished, tear it down
   // immediately so it doesn't cover the back transition.
@@ -342,7 +344,7 @@ function triggerBack() {
 
   // Drive 3D particles toward the saved menu card positions
   const menuPtcls = getLastMenuParticles();
-  clearAllParticles();
+  clearAllParticles(); clearLyricMeshes();
   if (menuPtcls.length > 0) {
     const { indices, samples, colors } = buildMenuTargets(menuPtcls);
     activateWordParticles(indices, samples, colors);
@@ -479,6 +481,7 @@ player.addListener({
 
     const phrase = player.video.findPhrase(position);
     if (phrase !== currentPhrase) {
+      if (currentPhrase && inPlayback) clearPhrase(currentPhrase);
       currentPhrase = phrase;
     }
 
@@ -493,6 +496,7 @@ player.addListener({
       if (word !== currentWord) {
         currentWord = word;
         if (word) setWord(word);
+        else clearCurrentWord();
       }
 
       const char = player.video.findChar(position);

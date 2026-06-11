@@ -69,5 +69,9 @@ void main() {
         alpha = gl_FrontFacing ? fres : max(fres, 0.15);
     }
 
+    // Beat rim pulse — teal glow that fires on beat drops.
+    float rim = pow(1.0 - cosTheta, 2.5);
+    combinedColour += vec3(0.20, 0.80, 0.90) * rim * uBeatIntensity * 2.2;
+
     gl_FragColor = vec4(combinedColour, alpha);
 }

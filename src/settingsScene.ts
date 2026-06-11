@@ -4,26 +4,29 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { activateWordParticles, clearParticles, setFadeRate } from './particles';
 import { sampleSurface, getFont } from './lyrics';
 import { setVolume, getVolume } from './volume';
+import { scene, glassInnerUniforms } from './renderer';
+import lyricGlassVert from './shaders/lyric-glass.vert?raw';
+import lyricGlassFrag from './shaders/lyric-glass.frag?raw';
 
 // ── Layout constants ──────────────────────────────────────────────────────────
-const BAR_HALF_W = 3.8;
+const BAR_HALF_W = 1.1;
 const BAR_LEFT   = -BAR_HALF_W;
 const BAR_RIGHT  =  BAR_HALF_W;
-const BAR_BOTTOM = -1.0;
-const BAR_TOP    = -0.2;
+const BAR_BOTTOM = -0.38;
+const BAR_TOP    = -0.12;
 const BAR_WIDTH  = BAR_RIGHT  - BAR_LEFT;
 const BAR_HEIGHT = BAR_TOP    - BAR_BOTTOM;
-const LABEL_Y    =  0.9;
-const LABEL_SIZE =  0.85;
+const LABEL_Y    =  0.35;
+const LABEL_SIZE =  0.4;
 
 // Worst-case half-extents used to compute a camera Z that fits everything.
 const LAYOUT_HALF_H = Math.max(LABEL_Y + LABEL_SIZE * 1.3, Math.abs(BAR_BOTTOM));
 const LAYOUT_HALF_W = BAR_HALF_W;
 
 // ── Particle index allocations ────────────────────────────────────────────────
-const LABEL_COUNT   =  8_000;
+const LABEL_COUNT   = 20_000;
 const OUTLINE_COUNT =  3_000;
-const FILL_COUNT    = 48_000;
+const FILL_COUNT    = 12_000;
 
 const labelIndices   = new Uint32Array(LABEL_COUNT);
 const outlineIndices = new Uint32Array(OUTLINE_COUNT);
@@ -34,6 +37,7 @@ for (let i = 0; i < FILL_COUNT;    i++) fillIndices[i]    = LABEL_COUNT + OUTLIN
 
 // ── Module state ──────────────────────────────────────────────────────────────
 let labelGeo:      THREE.BufferGeometry | null = null;
+let labelMesh:     THREE.Mesh           | null = null;
 let fillSamples:   Float32Array | null = null;
 let prevFillCount  = -1;
 
@@ -188,6 +192,22 @@ export function enterSettings(
   );
   activateWordParticles(labelIndices, sampleSurface(labelGeo, LABEL_COUNT));
 
+  labelMesh = new THREE.Mesh(labelGeo, new THREE.ShaderMaterial({
+    vertexShader:   lyricGlassVert,
+    fragmentShader: lyricGlassFrag,
+    uniforms: {
+      uCameraPos:     glassInnerUniforms.uCameraPos,
+      uEnvMap:        glassInnerUniforms.uEnvMap,
+      uBeatIntensity: glassInnerUniforms.uBeatIntensity,
+      uOpacity:       { value: 1.0 },
+    },
+    transparent: true,
+    depthWrite:  false,
+    blending:    THREE.AdditiveBlending,
+    renderOrder: 2,
+  }));
+  scene.add(labelMesh);
+
   // Bar outline
   activateWordParticles(outlineIndices, sampleOutline());
 
@@ -216,7 +236,8 @@ export function leaveSettings(
   fillSamples   = null;
   prevFillCount = -1;
 
-  if (labelGeo) { labelGeo.dispose(); labelGeo = null; }
+  if (labelMesh) { scene.remove(labelMesh); (labelMesh.material as THREE.ShaderMaterial).dispose(); labelMesh = null; }
+  if (labelGeo)  { labelGeo.dispose(); labelGeo = null; }
 
   // Restore camera
   if (savedCamPos && savedCamQuat && savedTarget) {
