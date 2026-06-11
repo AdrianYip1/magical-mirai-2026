@@ -5,10 +5,11 @@
 // localStorage, and from then on play the snippet from a standalone <audio>
 // element. No lyric sync is needed for a preview — just sound.
 
+import { getVolume } from './volume';
+
 type PreviewMeta = { src: string; chorusMs: number };
 
-const CACHE_KEY      = 'holofragment.preview.v1';
-const PREVIEW_VOLUME = 0.9;
+const CACHE_KEY = 'holofragment.preview.v1';
 const FADE_MS        = 180;
 const LOOP_WINDOW_S  = 15; // restart the snippet after this many seconds
 
@@ -95,7 +96,7 @@ function fadeIn(songUrl: string, a: HTMLAudioElement) {
   const step = (t: number) => {
     if (fadeFor !== songUrl) return;      // superseded by a newer preview
     const k = Math.min(1, (t - t0) / FADE_MS);
-    a.volume = from + (PREVIEW_VOLUME - from) * k;
+    a.volume = from + (getVolume() - from) * k;
     if (k < 1) fadeRaf = requestAnimationFrame(step);
   };
   fadeRaf = requestAnimationFrame(step);

@@ -16,7 +16,9 @@ export function initLyrics(onReady: () => void) {
   });
 }
 
-function sampleSurface(geo: THREE.BufferGeometry, count: number): Float32Array {
+export function getFont(): Font | null { return loadedFont; }
+
+export function sampleSurface(geo: THREE.BufferGeometry, count: number): Float32Array {
   const pos      = geo.attributes.position as THREE.BufferAttribute;
   const index    = geo.index;
   const triCount = index ? index.count / 3 : pos.count / 3;
@@ -100,6 +102,82 @@ export function clearPhrase(phrase: IPhrase) {
     for (const [, cd] of wd.chars) {
       clearParticles(cd.indices);
     }
+  }
+}
+
+let staticGeos: THREE.BufferGeometry[] = [];
+let staticGen = 0;
+
+export function clearStaticText() {
+  ++staticGen;
+  for (const geo of staticGeos) geo.dispose();
+  staticGeos = [];
+}
+
+export function displayStaticText(lines: string[]) {
+  if (!loadedFont) return;
+  clearStaticText();
+  const myGen = staticGen;
+
+  const FONT_SIZE   = 1.4;
+  const DEPTH       = 0.28;
+  const LINE_HEIGHT = 2.6;
+
+  const nonEmpty = lines.filter(l => l.trim().length > 0);
+  if (nonEmpty.length === 0) return;
+
+  const pool = new Uint32Array(COUNT);
+  for (let i = 0; i < COUNT; i++) pool[i] = i;
+  for (let i = COUNT - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+  }
+
+  const perLine = Math.max(1, Math.floor(COUNT / nonEmpty.length));
+  let poolOffset = 0;
+
+  const batches: { geo: THREE.BufferGeometry; indices: Uint32Array; delay: number }[] = [];
+
+  const totalHeight = lines.length * LINE_HEIGHT;
+  let yPos  = (totalHeight - LINE_HEIGHT) / 2;
+  let delay = 0;
+
+  for (const line of lines) {
+    if (!line.trim()) {
+      yPos  -= LINE_HEIGHT;
+      delay += 80;
+      continue;
+    }
+
+    const geo = new TextGeometry(line, {
+      font: loadedFont!,
+      size: FONT_SIZE,
+      depth: DEPTH,
+      curveSegments: 4,
+    });
+    geo.computeBoundingBox();
+    const bb = geo.boundingBox!;
+    const cx = (bb.min.x + bb.max.x) / 2;
+    const cy = (bb.min.y + bb.max.y) / 2;
+    geo.translate(-cx, -cy + yPos, 0);
+
+    const indices = new Uint32Array(perLine);
+    for (let k = 0; k < perLine; k++) indices[k] = pool[(poolOffset + k) % COUNT];
+    poolOffset = (poolOffset + perLine) % COUNT;
+
+    staticGeos.push(geo);
+    batches.push({ geo, indices, delay });
+
+    yPos  -= LINE_HEIGHT;
+    delay += 380;
+  }
+
+  for (const { geo, indices, delay: d } of batches) {
+    setTimeout(() => {
+      if (staticGen !== myGen) return;
+      const samples = sampleSurface(geo, indices.length);
+      activateWordParticles(indices, samples);
+    }, d);
   }
 }
 

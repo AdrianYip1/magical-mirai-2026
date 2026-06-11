@@ -44,6 +44,10 @@ const assignmentData = new Float32Array(COUNT * 4);
 const assignmentTex  = new THREE.DataTexture(assignmentData, WIDTH, WIDTH, THREE.RGBAFormat, THREE.FloatType);
 assignmentTex.needsUpdate = true;
 
+const colorData = new Float32Array(COUNT * 4);
+const colorTex  = new THREE.DataTexture(colorData, WIDTH, WIDTH, THREE.RGBAFormat, THREE.FloatType);
+colorTex.needsUpdate = true;
+
 let elapsedTime = 0;
 
 const simMaterial = new THREE.RawShaderMaterial({
@@ -60,7 +64,7 @@ const simMaterial = new THREE.RawShaderMaterial({
   },
 });
 
-export function activateWordParticles(indices: Uint32Array, samples: Float32Array) {
+export function activateWordParticles(indices: Uint32Array, samples: Float32Array, colors?: Float32Array) {
   for (let i = 0; i < indices.length; i++) {
     const p = indices[i];
     assignmentData[p * 4 + 0] = 1.0;
@@ -69,9 +73,18 @@ export function activateWordParticles(indices: Uint32Array, samples: Float32Arra
     targetData[p * 4 + 1] = samples[i * 4 + 1];
     targetData[p * 4 + 2] = samples[i * 4 + 2];
     targetData[p * 4 + 3] = 0;
+    if (colors) {
+      colorData[p * 4 + 0] = colors[i * 4 + 0];
+      colorData[p * 4 + 1] = colors[i * 4 + 1];
+      colorData[p * 4 + 2] = colors[i * 4 + 2];
+      colorData[p * 4 + 3] = 1.0;
+    } else {
+      colorData[p * 4 + 3] = 0.0;
+    }
   }
   assignmentTex.needsUpdate = true;
   targetTex.needsUpdate     = true;
+  colorTex.needsUpdate      = true;
 }
 
 export function clearParticles(indices: Uint32Array) {
@@ -87,6 +100,8 @@ export function clearParticles(indices: Uint32Array) {
 export function clearAllParticles() {
   assignmentData.fill(0);
   assignmentTex.needsUpdate = true;
+  colorData.fill(0);
+  colorTex.needsUpdate = true;
 }
 
 export function scatterParticlesInBox(
@@ -138,10 +153,15 @@ const renderMaterial = new THREE.ShaderMaterial({
     uBeat: { value: 0 },
     uEnvMap: { value: null },
     uAssignmentTex: { value: assignmentTex },
+    uColorTex: { value: colorTex },
   },
 });
 
 export const points = new THREE.Points(geometry, renderMaterial);
+
+export function setFadeRate(rate: number) {
+  simMaterial.uniforms.uFadeRate.value = rate;
+}
 
 export function update(renderer: THREE.WebGLRenderer, elapsed: number, delta: number, beat = 0, envMap?: THREE.Texture) {
   elapsedTime = elapsed;

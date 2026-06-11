@@ -1,8 +1,10 @@
 uniform samplerCube uEnvMap;
+uniform sampler2D uColorTex;
 
 varying float vAge;
 varying float vHue;
 varying vec3 vWorldPos;
+varying vec2 vTexUv;
 
 const float GLASS_INCIDENCE = 0.15;
 
@@ -23,8 +25,15 @@ void main() {
     float cosTheta = dot(normal, viewDir);
     float fres = fresnel(cosTheta, GLASS_INCIDENCE);
 
-    vec3 holoColor = 0.5 + 0.5 * cos(6.28318 * (vHue + vec3(0.0, 0.333, 0.667)));
-    vec3 finalColor = mix(holoColor * 0.3, reflectColour, fres);
+    vec4 cardColor = texture2D(uColorTex, vTexUv);
+    vec3 finalColor;
+    if (cardColor.a > 0.5) {
+        // Explicit card color: brighten it and add a touch of reflection
+        finalColor = mix(cardColor.rgb * 1.2, reflectColour, fres * 0.4);
+    } else {
+        vec3 holoColor = 0.5 + 0.5 * cos(6.28318 * (vHue + vec3(0.0, 0.333, 0.667)));
+        finalColor = mix(holoColor * 0.3, reflectColour, fres);
+    }
 
     float age = 1.0 - smoothstep(0.7, 1.0, vAge);
     gl_FragColor = vec4(finalColor, age);

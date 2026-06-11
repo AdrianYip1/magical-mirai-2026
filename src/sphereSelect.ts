@@ -226,7 +226,10 @@ const DI_SCALE    = 2;
 const DI_DURATION = 2000;
 const DI_CSAMP    = 6;
 
-interface DiParticle { x: number; y: number; r: number; g: number; b: number; }
+export interface DiParticle { x: number; y: number; r: number; g: number; b: number; }
+
+let lastMenuParticles: DiParticle[] = [];
+export function getLastMenuParticles(): DiParticle[] { return lastMenuParticles; }
 
 function hexToRgb(hex: string): [number, number, number] {
   const m = hex.match(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
@@ -247,6 +250,14 @@ function captureMenuParticles(cardEls: HTMLDivElement[]): DiParticle[] {
     off.width = cw; off.height = ch;
     const oc = off.getContext('2d')!;
 
+    // Always pre-fill with the card theme colour so the canvas is never fully
+    // transparent. Without this, freshly-loaded cards (image not yet decoded,
+    // particle animation not yet started) produce an all-transparent bitmap and
+    // captureMenuParticles returns nothing — breaking the back transition.
+    const [fr, fg, fb] = hexToRgb(getComputedStyle(card).getPropertyValue('--c').trim());
+    oc.fillStyle = `rgb(${fr},${fg},${fb})`;
+    oc.fillRect(0, 0, cw, ch);
+
     const bgImg = card.querySelector<HTMLImageElement>('.sss-card-bg');
     if (bgImg?.complete && bgImg.naturalWidth > 0) {
       try { oc.drawImage(bgImg, 0, 0, cw, ch); } catch { /* tainted */ }
@@ -259,8 +270,6 @@ function captureMenuParticles(cardEls: HTMLDivElement[]): DiParticle[] {
 
     let data: Uint8ClampedArray | null = null;
     try { data = oc.getImageData(0, 0, cw, ch).data; } catch { /* tainted */ }
-
-    const [fr, fg, fb] = hexToRgb(getComputedStyle(card).getPropertyValue('--c').trim());
 
     for (let ly = DI_CSAMP / 2; ly < ch; ly += DI_CSAMP) {
       for (let lx = DI_CSAMP / 2; lx < cw; lx += DI_CSAMP) {
@@ -278,7 +287,7 @@ function captureMenuParticles(cardEls: HTMLDivElement[]): DiParticle[] {
   return out;
 }
 
-function runDisintegration(particles: DiParticle[], onDone: () => void): void {
+function runDisintegration(particles: DiParticle[], onDone: () => void): () => void {
   const W = Math.ceil(window.innerWidth  / DI_SCALE);
   const H = Math.ceil(window.innerHeight / DI_SCALE);
 
@@ -313,8 +322,17 @@ function runDisintegration(particles: DiParticle[], onDone: () => void): void {
 
   const start = performance.now();
   let raf: number;
+  let cancelled = false;
+
+  function cancel() {
+    if (cancelled) return;
+    cancelled = true;
+    cancelAnimationFrame(raf);
+    overlay.remove();
+  }
 
   function tick(now: number) {
+    if (cancelled) return;
     const progress = Math.min((now - start) / DI_DURATION, 1);
     const dt = 1 / 60;
 
@@ -344,11 +362,12 @@ function runDisintegration(particles: DiParticle[], onDone: () => void): void {
     imgData.data.set(buf);
     ctx.putImageData(imgData, 0, 0);
 
-    if (progress >= 1) { overlay.remove(); onDone(); }
+    if (progress >= 1) { cancelled = true; overlay.remove(); onDone(); }
     else { raf = requestAnimationFrame(tick); }
   }
 
   raf = requestAnimationFrame(tick);
+  return cancel;
 }
 
 export function mountSphereSongSelect(
@@ -360,7 +379,8 @@ export function mountSphereSongSelect(
   onHover: (song: SongOption) => void,
   onLeave: () => void,
   initialIndex = 0,
-): { cleanup: () => void; setLoading: (on: boolean) => void; beat: (intensity: number) => void } {
+  hidden = false,
+): { cleanup: () => void; setLoading: (on: boolean) => void; beat: (intensity: number) => void; reveal: () => void; abortDisintegration: () => void } {
   const n = items.length;
   const STEP = 360 / n;
   initialIndex = ((initialIndex % n) + n) % n;
@@ -375,6 +395,10 @@ export function mountSphereSongSelect(
   inner.className = 'sss-inner';
   scene.appendChild(inner);
   root.appendChild(scene);
+  if (hidden) {
+    root.style.opacity = '0';
+    root.style.pointerEvents = 'none';
+  }
   document.body.appendChild(root);
 
   // Cards
@@ -422,9 +446,9 @@ export function mountSphereSongSelect(
       if (dragMoved > 5) return;
       if (i !== activeIndex) { snapTo(i); return; }
       if (item.kind === 'song') selectSong(item.data);
-      else if (item.kind === 'settings') onSettings();
-      else if (item.kind === 'language') onLanguage();
-      else if (item.kind === 'credits') onCredits();
+      else if (item.kind === 'settings') selectUtility(onSettings);
+      else if (item.kind === 'language') selectUtility(onLanguage);
+      else if (item.kind === 'credits') selectUtility(onCredits);
     });
 
     inner.appendChild(card);
@@ -441,15 +465,40 @@ export function mountSphereSongSelect(
   let lastX       = 0;
   let raf: number;
 
+  let cancelDi: (() => void) | null = null;
+
   function selectSong(song: SongOption) {
     onSongSelect(song);
     root.style.pointerEvents = 'none';
     const diParticles = captureMenuParticles(cardEls);
+    lastMenuParticles = diParticles;
     requestAnimationFrame(() => {
       root.style.transition = 'opacity 0.12s';
       root.style.opacity    = '0';
     });
-    runDisintegration(diParticles, cleanup);
+    cancelDi = runDisintegration(diParticles, cleanup);
+  }
+
+  function selectUtility(callback: () => void) {
+    callback();
+    root.style.pointerEvents = 'none';
+    const diParticles = captureMenuParticles(cardEls);
+    lastMenuParticles = diParticles;
+    requestAnimationFrame(() => {
+      root.style.transition = 'opacity 0.12s';
+      root.style.opacity    = '0';
+    });
+    cancelDi = runDisintegration(diParticles, cleanup);
+  }
+
+  function abortDisintegration() {
+    if (cancelDi) {
+      cancelDi();
+      cancelDi = null;
+    }
+    // Only clean up if the root is still in the DOM — the disintegration may
+    // have already finished naturally and called cleanup() itself.
+    if (root.isConnected) cleanup();
   }
 
   function snapTo(index: number) {
@@ -528,5 +577,11 @@ export function mountSphereSongSelect(
     root.remove();
   }
 
-  return { cleanup, setLoading, beat };
+  function reveal() {
+    root.style.transition = 'opacity 0.7s';
+    root.style.opacity = '1';
+    root.style.pointerEvents = '';
+  }
+
+  return { cleanup, setLoading, beat, reveal, abortDisintegration };
 }
