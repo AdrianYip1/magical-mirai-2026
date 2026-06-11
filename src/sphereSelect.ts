@@ -477,17 +477,8 @@ export function mountSphereSongSelect(
       card.innerHTML     = `<div class="sss-util-label">${getUtilLabel(item.kind)}</div>`;
     }
 
-    card.addEventListener('pointerup', () => {
-      if (dragMoved > 12) return;
-      if (i !== activeIndex) { snapTo(i); return; }
-      if (item.kind === 'song') selectSong(item.data);
-      else if (item.kind === 'settings') selectUtility(onSettings);
-      else if (item.kind === 'language') {
-        setLanguage(getLanguage() === 'en' ? 'ja' : 'en');
-        updateUtilityLabels();
-      }
-      else if (item.kind === 'credits') selectUtility(onCredits);
-    });
+    // No per-card listener — activation handled in window onPointerUp so Android
+    // preserve-3d hit-test confusion (rotated cards intercepting events) can't block it.
 
     inner.appendChild(card);
     cardEls.push(card);
@@ -554,7 +545,10 @@ export function mountSphereSongSelect(
   }
 
   function updateActive() {
-    cardEls.forEach((el, i) => el.classList.toggle('sss-card--active', i === activeIndex));
+    cardEls.forEach((el, i) => {
+      el.classList.toggle('sss-card--active', i === activeIndex);
+      el.style.pointerEvents = i === activeIndex ? 'auto' : 'none';
+    });
   }
 
   function tick() {
@@ -585,7 +579,18 @@ export function mountSphereSongSelect(
   function onPointerUp() {
     if (!dragging) return;
     dragging = false; scene.style.cursor = 'grab';
-    if (dragMoved > 5) snapTo(Math.round(-spinAngle / STEP));
+    if (dragMoved > 12) {
+      snapTo(Math.round(-spinAngle / STEP));
+    } else {
+      const item = items[activeIndex];
+      if (item.kind === 'song') selectSong(item.data);
+      else if (item.kind === 'settings') selectUtility(onSettings);
+      else if (item.kind === 'language') {
+        setLanguage(getLanguage() === 'en' ? 'ja' : 'en');
+        updateUtilityLabels();
+      }
+      else if (item.kind === 'credits') selectUtility(onCredits);
+    }
   }
 
   scene.addEventListener('pointerdown', onPointerDown);

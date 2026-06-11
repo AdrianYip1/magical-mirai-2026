@@ -32,7 +32,7 @@ export const renderLargerTarget = new THREE.WebGLRenderTarget(window.innerWidth,
 export const scene = new THREE.Scene();
 
 export const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(0, 0, 22);
+camera.position.set(0, 0, 30);
 camera.layers.enable(1);
 camera.layers.enable(2);
 
