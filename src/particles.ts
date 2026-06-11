@@ -3,7 +3,7 @@ import simVert    from './shaders/particles/sim.vert?raw';
 import simFrag    from './shaders/particles/sim.frag?raw';
 import renderVert from './shaders/particles/render.vert?raw';
 import renderFrag from './shaders/particles/render.frag?raw';
-import { IS_MOBILE, PARTICLE_WIDTH } from './perf';
+import { PARTICLE_WIDTH } from './perf';
 
 const WIDTH = PARTICLE_WIDTH;
 export const COUNT = WIDTH * WIDTH;
@@ -26,7 +26,7 @@ function makeRT(): THREE.WebGLRenderTarget {
     minFilter: THREE.NearestFilter,
     magFilter: THREE.NearestFilter,
     format: THREE.RGBAFormat,
-    type: IS_MOBILE ? THREE.HalfFloatType : THREE.FloatType,
+    type: THREE.FloatType,
     depthBuffer: false,
     stencilBuffer: false,
   });
@@ -53,7 +53,7 @@ let elapsedTime = 0;
 const simMaterial = new THREE.RawShaderMaterial({
   vertexShader:   simVert,
   fragmentShader: simFrag,
-  defines: IS_MOBILE ? { MOBILE: '' } : {},
+
   uniforms: {
     uState: { value: prevTex },
     uTime: { value: 0 },

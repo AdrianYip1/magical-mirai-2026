@@ -66,7 +66,11 @@ void main() {
         alpha = 1.0;
     } else {
         combinedColour = mix(refracted, reflectColour, fres);
-        alpha = gl_FrontFacing ? fres : max(fres, 0.15);
+        // Fade out at extreme grazing angles so the silhouette rim doesn't
+        // block text near the sphere edges (non-physical but intentional).
+        float edgeFade = smoothstep(0.0, 0.40, cosTheta);
+        float rawAlpha = gl_FrontFacing ? fres : max(fres, 0.15);
+        alpha = rawAlpha * mix(0.2, 1.0, edgeFade);
     }
 
     // Beat rim pulse — teal glow that fires on beat drops.

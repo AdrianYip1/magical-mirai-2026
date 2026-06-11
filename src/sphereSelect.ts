@@ -457,7 +457,7 @@ export function mountSphereSongSelect(
     if (item.kind === 'song') {
       const { name, artist } = getSongNames(item.data);
       const color = COLORS[songColorIdx++ % COLORS.length];
-      const thumbnail = item.data.thumbnail || '/assets/placeholder_miku.png';
+      const thumbnail = item.data.thumbnail || import.meta.env.BASE_URL + 'assets/placeholder_miku.png';
       card.className     = 'sss-card';
       card.style.cssText = `--c:${color}; transform:${baseTransform};`;
       card.innerHTML     = `
@@ -477,8 +477,8 @@ export function mountSphereSongSelect(
       card.innerHTML     = `<div class="sss-util-label">${getUtilLabel(item.kind)}</div>`;
     }
 
-    card.addEventListener('click', () => {
-      if (dragMoved > 5) return;
+    card.addEventListener('pointerup', () => {
+      if (dragMoved > 12) return;
       if (i !== activeIndex) { snapTo(i); return; }
       if (item.kind === 'song') selectSong(item.data);
       else if (item.kind === 'settings') selectUtility(onSettings);

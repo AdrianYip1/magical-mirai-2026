@@ -6,14 +6,14 @@ export const songs: SongOption[] = [
     titleJa: 'こたえて',
     url: 'https://piapro.jp/t/6W2N/20251215164617',
     videoIds: { beatId: 4827293, chordId: 2963754, repetitiveSegmentId: 3086261, lyricId: 126519, lyricDiffId: 28645 },
-    thumbnail: '/assets/ime_thumbnail.jpg'
+    thumbnail: import.meta.env.BASE_URL + 'assets/ime_thumbnail.jpg'
   },
   {
     title: 'After the Curtain — Rulmry',
     titleJa: 'アフター・ザ・カーテン',
     url: 'https://piapro.jp/t/zoqO/20251214200738',
     videoIds: { beatId: 4827294, chordId: 2963755, repetitiveSegmentId: 3086262, lyricId: 126591, lyricDiffId: 28627 },
-    thumbnail: '/assets/curtain.jpg'
+    thumbnail: import.meta.env.BASE_URL + 'assets/curtain.jpg'
   },
   {
     title: 'Shutter Chance — Yamiagari',
@@ -21,7 +21,7 @@ export const songs: SongOption[] = [
     artistJa: '夜未アガリ',
     url: 'https://piapro.jp/t/PNpQ/20251209170719',
     videoIds: { beatId: 4827295, chordId: 2963756, repetitiveSegmentId: 3086263, lyricId: 126542, lyricDiffId: 28628 },
-    thumbnail: '/assets/shutter_chance.jpg'
+    thumbnail: import.meta.env.BASE_URL + 'assets/shutter_chance.jpg'
   },
   {
     title: "The World's Last Music Band — Natsuyama Yotsugi x Dopamine",
