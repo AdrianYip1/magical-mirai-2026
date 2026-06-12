@@ -5,14 +5,14 @@ uniform samplerCube uEnvMap;
 uniform sampler2D uSceneTexture;
 uniform float uRadius;
 uniform float uBeatIntensity;
+uniform float uDetailLevel; // 0 = low (original look), 1 = high (enhanced)
 
 varying vec3 vWorldPos;
 varying vec3 vNormal;
 
-const float GLASS_INCIDENCE = 0.15;
 const float IOR_AIR = 1.0;
 const float IOR_GLASS = 1.5;
-const vec3 absorbCoeff = vec3(0.1, 0.05, 0.02);
+const vec3 absorbCoeff = vec3(0.08, 0.04, 0.01);
 
 float fresnel(const float cosTheta, const float F0) {
     return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
@@ -39,12 +39,16 @@ void main() {
     float cosI = dot(faceNormal, viewDir);
     bool totalInternalReflection = !gl_FrontFacing && (IOR * IOR * (1.0 - cosI * cosI) > 1.0);
 
+    // Chromatic offsets: original (low) vs enhanced (high)
+    float offG = mix(0.01,  0.028, uDetailLevel);
+    float offB = mix(0.04,  0.09,  uDetailLevel);
+
     vec3 refracted = vec3(0.0);
     if (!totalInternalReflection) {
-        float spread = 1.0 + uBeatIntensity * 0.1;
+        float spread = 1.0 + uBeatIntensity * mix(0.10, 0.18, uDetailLevel);
         vec3 refDirR = refract(-viewDir, faceNormal, IOR);
-        vec3 refDirG = refract(-viewDir, faceNormal, IOR * (1.0 + 0.01 * spread));
-        vec3 refDirB = refract(-viewDir, faceNormal, IOR * (1.0 + 0.04 * spread));
+        vec3 refDirG = refract(-viewDir, faceNormal, IOR * (1.0 + offG * spread));
+        vec3 refDirB = refract(-viewDir, faceNormal, IOR * (1.0 + offB * spread));
         refracted.r = texture2D(uSceneTexture, exitUV(vWorldPos, refDirR)).r;
         refracted.g = texture2D(uSceneTexture, exitUV(vWorldPos, refDirG)).g;
         refracted.b = texture2D(uSceneTexture, exitUV(vWorldPos, refDirB)).b;
@@ -54,10 +58,12 @@ void main() {
     }
 
     vec3 reflectDir = reflect(-viewDir, faceNormal);
-    vec3 reflectColour = textureCube(uEnvMap, reflectDir).rgb;
+    float reflBoost = mix(1.0, 1.6, uDetailLevel);
+    vec3 reflectColour = textureCube(uEnvMap, reflectDir).rgb * reflBoost;
 
     float cosTheta = abs(dot(faceNormal, viewDir));
-    float fres = fresnel(cosTheta, GLASS_INCIDENCE);
+    float F0 = mix(0.15, 0.32, uDetailLevel);
+    float fres = fresnel(cosTheta, F0);
 
     vec3 combinedColour;
     float alpha;
@@ -66,11 +72,13 @@ void main() {
         alpha = 1.0;
     } else {
         combinedColour = mix(refracted, reflectColour, fres);
-        // Fade out at extreme grazing angles so the silhouette rim doesn't
-        // block text near the sphere edges (non-physical but intentional).
-        float edgeFade = smoothstep(0.0, 0.40, cosTheta);
-        float rawAlpha = gl_FrontFacing ? fres : max(fres, 0.15);
-        alpha = rawAlpha * mix(0.2, 1.0, edgeFade);
+        float edgeThresh = mix(0.40, 0.35, uDetailLevel);
+        float edgeFade   = smoothstep(0.0, edgeThresh, cosTheta);
+        float alphaBase  = mix(0.0, 0.42, uDetailLevel);
+        float backBase   = mix(0.15, 0.35, uDetailLevel);
+        float edgeFloor  = mix(0.2, 0.45, uDetailLevel);
+        float rawAlpha   = gl_FrontFacing ? max(fres, alphaBase) : max(fres, backBase);
+        alpha = rawAlpha * mix(edgeFloor, 1.0, edgeFade);
     }
 
     // Beat rim pulse — teal glow that fires on beat drops.

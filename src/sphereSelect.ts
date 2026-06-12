@@ -488,6 +488,8 @@ export function mountSphereSongSelect(
   let dragging    = false;
   let dragMoved   = 0;
   let lastX       = 0;
+  let downX       = 0;
+  let downY       = 0;
   let raf: number;
 
   let cancelDi: (() => void) | null = null;
@@ -564,8 +566,23 @@ export function mountSphereSongSelect(
     });
   }));
 
+  function findClickedCardIndex(x: number, y: number): number | null {
+    let bestIndex: number | null = null;
+    let bestZ = -Infinity;
+    cardEls.forEach((el, i) => {
+      const rect = el.getBoundingClientRect();
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+        const angleRad = (i / n) * 2 * Math.PI + spinAngle * Math.PI / 180;
+        const z = Math.cos(angleRad);
+        if (z > bestZ) { bestZ = z; bestIndex = i; }
+      }
+    });
+    return bestIndex;
+  }
+
   function onPointerDown(e: PointerEvent) {
     dragging = true; dragMoved = 0; lastX = e.clientX;
+    downX = e.clientX; downY = e.clientY;
     scene.style.cursor = 'grabbing';
   }
   function onPointerMove(e: PointerEvent) {
@@ -580,14 +597,19 @@ export function mountSphereSongSelect(
     if (dragMoved > 12) {
       snapTo(Math.round(-spinAngle / STEP));
     } else {
-      const item = items[activeIndex];
-      if (item.kind === 'song') selectSong(item.data);
-      else if (item.kind === 'settings') selectUtility(onSettings);
-      else if (item.kind === 'credits') selectUtility(onCredits);
+      const clickedIndex = findClickedCardIndex(downX, downY);
+      if (clickedIndex !== null && clickedIndex !== activeIndex) {
+        snapTo(clickedIndex);
+      } else {
+        const item = items[activeIndex];
+        if (item.kind === 'song') selectSong(item.data);
+        else if (item.kind === 'settings') selectUtility(onSettings);
+        else if (item.kind === 'credits') selectUtility(onCredits);
+      }
     }
   }
 
-  scene.addEventListener('pointerdown', onPointerDown);
+  root.addEventListener('pointerdown', onPointerDown);
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup',   onPointerUp);
 
@@ -602,7 +624,7 @@ export function mountSphereSongSelect(
   function cleanup() {
     cancelAnimationFrame(raf);
     loaders.forEach(l => l.cancel());
-    scene.removeEventListener('pointerdown', onPointerDown);
+    root.removeEventListener('pointerdown', onPointerDown);
     window.removeEventListener('pointermove', onPointerMove);
     window.removeEventListener('pointerup',   onPointerUp);
     root.remove();

@@ -110,7 +110,7 @@ void main() {
     vec3 velocity = mix(flow, toTarget * 6.0, fade);
     pos += velocity * speed * uDelta;
 
-    age += uDelta * mix(0.12, 0.02, fade);
+    age += uDelta * mix(0.50, 0.02, fade);
 
     gl_FragColor = vec4(pos, age);
 }

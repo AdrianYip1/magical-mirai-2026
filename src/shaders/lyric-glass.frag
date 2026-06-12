@@ -23,8 +23,8 @@ void main() {
     vec3 glassBase = vec3(0.65, 0.88, 1.0);
     vec3 rimGlow   = glassBase * rim * (1.5 + uBeatIntensity * 2.0);
 
-    vec3  color = glassBase * 0.45 + envRefl + rimGlow;
-    float alpha = (0.30 + rim * 0.65) * uOpacity;
+    vec3  color = glassBase * 0.6 + envRefl + rimGlow;
+    float alpha = (0.55 + rim * 0.45) * uOpacity;
 
     gl_FragColor = vec4(color, alpha);
 }

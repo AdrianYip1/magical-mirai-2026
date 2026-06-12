@@ -5,7 +5,8 @@ import { activateWordParticles, clearParticles, setFadeRate, COUNT } from './par
 import { sampleSurface, getFont } from './lyrics';
 import { setVolume, getVolume } from './volume';
 import { getLanguage, setLanguage } from './language';
-import { scene, glassInnerUniforms } from './renderer';
+import { getDetailMode, setDetailMode } from './settings';
+import { scene, glassInnerUniforms, applyDetailMode, flushCubemapNow } from './renderer';
 import lyricGlassVert from './shaders/lyric-glass.vert?raw';
 import lyricGlassFrag from './shaders/lyric-glass.frag?raw';
 
@@ -24,8 +25,13 @@ const LANG_SECTION_SIZE =  0.4;
 const LANG_CHIP_Y       = -1.42;
 const LANG_CHIP_SIZE    =  0.35;
 
-const CONTENT_TOP    = LABEL_Y       + LABEL_SIZE       * 0.6;
-const CONTENT_BOTTOM = LANG_CHIP_Y   - LANG_CHIP_SIZE   * 0.6;
+const DETAIL_SECTION_Y    = -2.00;
+const DETAIL_SECTION_SIZE =  0.4;
+const DETAIL_CHIP_Y       = -2.55;
+const DETAIL_CHIP_SIZE    =  0.35;
+
+const CONTENT_TOP    = LABEL_Y          + LABEL_SIZE          * 0.6;
+const CONTENT_BOTTOM = DETAIL_CHIP_Y    - DETAIL_CHIP_SIZE    * 0.6;
 const CONTENT_MID_Y  = (CONTENT_TOP + CONTENT_BOTTOM) / 2;
 const CONTENT_HALF_H = (CONTENT_TOP - CONTENT_BOTTOM) / 2;
 const LAYOUT_HALF_W  = 1.6;
@@ -37,19 +43,28 @@ const FILL_COUNT    = Math.round(12_000 * SCALE);
 const LANG_HEAD_COUNT = Math.round(10_000 * SCALE);
 const LANG_CHIP_COUNT = Math.round( 8_000 * SCALE);
 
-const LANG_HEAD_BASE = LABEL_COUNT + OUTLINE_COUNT + FILL_COUNT;
-const LANG_CHIP_BASE = LANG_HEAD_BASE + LANG_HEAD_COUNT;
+const DETAIL_HEAD_COUNT = Math.round( 7_000 * SCALE);
+const DETAIL_CHIP_COUNT = Math.round( 5_000 * SCALE);
 
-const labelIndices    = new Uint32Array(LABEL_COUNT);
-const outlineIndices  = new Uint32Array(OUTLINE_COUNT);
-const fillIndices     = new Uint32Array(FILL_COUNT);
-const langHeadIndices = new Uint32Array(LANG_HEAD_COUNT);
-const langChipIndices = new Uint32Array(LANG_CHIP_COUNT);
-for (let i = 0; i < LABEL_COUNT;     i++) labelIndices[i]    = i;
-for (let i = 0; i < OUTLINE_COUNT;   i++) outlineIndices[i]  = LABEL_COUNT + i;
-for (let i = 0; i < FILL_COUNT;      i++) fillIndices[i]     = LABEL_COUNT + OUTLINE_COUNT + i;
-for (let i = 0; i < LANG_HEAD_COUNT; i++) langHeadIndices[i] = LANG_HEAD_BASE + i;
-for (let i = 0; i < LANG_CHIP_COUNT; i++) langChipIndices[i] = LANG_CHIP_BASE + i;
+const LANG_HEAD_BASE   = LABEL_COUNT + OUTLINE_COUNT + FILL_COUNT;
+const LANG_CHIP_BASE   = LANG_HEAD_BASE + LANG_HEAD_COUNT;
+const DETAIL_HEAD_BASE = LANG_CHIP_BASE + LANG_CHIP_COUNT;
+const DETAIL_CHIP_BASE = DETAIL_HEAD_BASE + DETAIL_HEAD_COUNT;
+
+const labelIndices      = new Uint32Array(LABEL_COUNT);
+const outlineIndices    = new Uint32Array(OUTLINE_COUNT);
+const fillIndices       = new Uint32Array(FILL_COUNT);
+const langHeadIndices   = new Uint32Array(LANG_HEAD_COUNT);
+const langChipIndices   = new Uint32Array(LANG_CHIP_COUNT);
+const detailHeadIndices = new Uint32Array(DETAIL_HEAD_COUNT);
+const detailChipIndices = new Uint32Array(DETAIL_CHIP_COUNT);
+for (let i = 0; i < LABEL_COUNT;       i++) labelIndices[i]      = i;
+for (let i = 0; i < OUTLINE_COUNT;     i++) outlineIndices[i]    = LABEL_COUNT + i;
+for (let i = 0; i < FILL_COUNT;        i++) fillIndices[i]       = LABEL_COUNT + OUTLINE_COUNT + i;
+for (let i = 0; i < LANG_HEAD_COUNT;   i++) langHeadIndices[i]   = LANG_HEAD_BASE + i;
+for (let i = 0; i < LANG_CHIP_COUNT;   i++) langChipIndices[i]   = LANG_CHIP_BASE + i;
+for (let i = 0; i < DETAIL_HEAD_COUNT; i++) detailHeadIndices[i] = DETAIL_HEAD_BASE + i;
+for (let i = 0; i < DETAIL_CHIP_COUNT; i++) detailChipIndices[i] = DETAIL_CHIP_BASE + i;
 
 function makeGlassMat(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
@@ -70,7 +85,6 @@ function makeGlassMat(): THREE.ShaderMaterial {
 
 let labelGeo:  THREE.BufferGeometry | null = null;
 let labelMesh: THREE.Mesh           | null = null;
-let barMesh:   THREE.Mesh           | null = null;
 let fillSamples:  Float32Array | null = null;
 let prevFillCount = -1;
 
@@ -79,6 +93,12 @@ let langSectionMesh: THREE.Mesh | null = null;
 let langChipGeo:     THREE.BufferGeometry | null = null;
 let langChipMesh:    THREE.Mesh | null = null;
 let langChipOverlay: HTMLDivElement | null = null;
+
+let detailSectionGeo:  THREE.BufferGeometry | null = null;
+let detailSectionMesh: THREE.Mesh | null = null;
+let detailChipGeo:     THREE.BufferGeometry | null = null;
+let detailChipMesh:    THREE.Mesh | null = null;
+let detailChipOverlay: HTMLDivElement | null = null;
 
 let savedCamPos:  THREE.Vector3    | null = null;
 let savedCamQuat: THREE.Quaternion | null = null;
@@ -247,7 +267,7 @@ function rebuildChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   if (langChipMesh) { scene.remove(langChipMesh); (langChipMesh.material as THREE.ShaderMaterial).dispose(); langChipMesh = null; }
   if (langChipGeo)  { langChipGeo.dispose(); langChipGeo = null; }
 
-  const text = getLanguage() === 'ja' ? 'JA' : 'EN';
+  const text = getLanguage() === 'ja' ? '日本語' : '英語';
   langChipGeo = new TextGeometry(text, { font, size: LANG_CHIP_SIZE, depth: 0.10, curveSegments: 4 });
   langChipGeo.computeBoundingBox();
   const bb = langChipGeo.boundingBox!;
@@ -259,6 +279,65 @@ function rebuildChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   activateWordParticles(langChipIndices, sampleSurface(langChipGeo, LANG_CHIP_COUNT));
   langChipMesh = new THREE.Mesh(langChipGeo, makeGlassMat());
   scene.add(langChipMesh);
+}
+
+function rebuildDetailSectionMesh(font: NonNullable<ReturnType<typeof getFont>>) {
+  if (detailSectionMesh) { scene.remove(detailSectionMesh); (detailSectionMesh.material as THREE.ShaderMaterial).dispose(); detailSectionMesh = null; }
+  if (detailSectionGeo)  { detailSectionGeo.dispose(); detailSectionGeo = null; }
+
+  const text = getLanguage() === 'ja' ? '品質' : 'DETAIL';
+  detailSectionGeo = new TextGeometry(text, { font, size: DETAIL_SECTION_SIZE, depth: 0.08, curveSegments: 4 });
+  detailSectionGeo.computeBoundingBox();
+  const bb = detailSectionGeo.boundingBox!;
+  detailSectionGeo.translate(
+    -(bb.min.x + bb.max.x) / 2,
+    -(bb.min.y + bb.max.y) / 2 + DETAIL_SECTION_Y,
+    0,
+  );
+  activateWordParticles(detailHeadIndices, sampleSurface(detailSectionGeo, DETAIL_HEAD_COUNT));
+  detailSectionMesh = new THREE.Mesh(detailSectionGeo, makeGlassMat());
+  scene.add(detailSectionMesh);
+}
+
+function rebuildDetailChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
+  if (detailChipMesh) { scene.remove(detailChipMesh); (detailChipMesh.material as THREE.ShaderMaterial).dispose(); detailChipMesh = null; }
+  if (detailChipGeo)  { detailChipGeo.dispose(); detailChipGeo = null; }
+
+  const text = getDetailMode() === 'high' ? 'HIGH' : 'LOW';
+  detailChipGeo = new TextGeometry(text, { font, size: DETAIL_CHIP_SIZE, depth: 0.10, curveSegments: 4 });
+  detailChipGeo.computeBoundingBox();
+  const bb = detailChipGeo.boundingBox!;
+  detailChipGeo.translate(
+    -(bb.min.x + bb.max.x) / 2,
+    -(bb.min.y + bb.max.y) / 2 + DETAIL_CHIP_Y,
+    -(bb.min.z + bb.max.z) / 2,
+  );
+  activateWordParticles(detailChipIndices, sampleSurface(detailChipGeo, DETAIL_CHIP_COUNT));
+  detailChipMesh = new THREE.Mesh(detailChipGeo, makeGlassMat());
+  scene.add(detailChipMesh);
+}
+
+function setupDetailChipOverlay(
+  camera: THREE.Camera,
+  canvasEl: HTMLCanvasElement,
+  onToggle: () => void,
+) {
+  const W = 140, H = 80;
+  const pos = worldToScreen(0, DETAIL_CHIP_Y, camera, canvasEl);
+
+  detailChipOverlay = document.createElement('div');
+  Object.assign(detailChipOverlay.style, {
+    position:    'fixed',
+    cursor:      'pointer',
+    zIndex:      '20',
+    touchAction: 'none',
+    left:        `${pos.x - W / 2}px`,
+    top:         `${pos.y - H / 2}px`,
+    width:       `${W}px`,
+    height:      `${H}px`,
+  });
+  document.body.appendChild(detailChipOverlay);
+  detailChipOverlay.addEventListener('pointerdown', onToggle);
 }
 
 export function enterSettings(
@@ -291,13 +370,6 @@ export function enterSettings(
 
   rebuildLabelMesh(font);
 
-  // Volume bar
-  const barGeo = new THREE.BoxGeometry(BAR_WIDTH, BAR_HEIGHT, 0.06);
-  barGeo.translate((BAR_LEFT + BAR_RIGHT) / 2, (BAR_BOTTOM + BAR_TOP) / 2, 0);
-  barMesh = new THREE.Mesh(barGeo, makeGlassMat());
-  barMesh.renderOrder = 1;
-  scene.add(barMesh);
-
   activateWordParticles(outlineIndices, sampleOutline());
 
   prevFillCount = 0;
@@ -306,6 +378,8 @@ export function enterSettings(
 
   rebuildLangSectionMesh(font);
   rebuildChipMesh(font);
+  rebuildDetailSectionMesh(font);
+  rebuildDetailChipMesh(font);
 
   setupOverlay(camera, canvasEl);
   setupChipOverlay(camera, canvasEl, () => {
@@ -315,6 +389,15 @@ export function enterSettings(
     rebuildLabelMesh(f);
     rebuildLangSectionMesh(f);
     rebuildChipMesh(f);
+    rebuildDetailSectionMesh(f);
+  });
+  setupDetailChipOverlay(camera, canvasEl, () => {
+    const f = getFont();
+    if (!f) return;
+    const next = getDetailMode() === 'high' ? 'low' : 'high';
+    setDetailMode(next);
+    applyDetailMode(next);
+    rebuildDetailChipMesh(f);
   });
 }
 
@@ -330,7 +413,8 @@ export function leaveSettings(
     overlayEl = null;
   }
 
-  if (langChipOverlay) { langChipOverlay.remove(); langChipOverlay = null; }
+  if (langChipOverlay)    { langChipOverlay.remove();    langChipOverlay = null; }
+  if (detailChipOverlay)  { detailChipOverlay.remove();  detailChipOverlay = null; }
 
   isDragging    = false;
   fillSamples   = null;
@@ -338,15 +422,22 @@ export function leaveSettings(
 
   if (labelMesh) { scene.remove(labelMesh); (labelMesh.material as THREE.ShaderMaterial).dispose(); labelMesh = null; }
   if (labelGeo)  { labelGeo.dispose(); labelGeo = null; }
-  if (barMesh)   { scene.remove(barMesh); (barMesh.material as THREE.ShaderMaterial).dispose(); barMesh = null; }
+  if (langSectionMesh)    { scene.remove(langSectionMesh);    (langSectionMesh.material   as THREE.ShaderMaterial).dispose(); langSectionMesh    = null; }
+  if (langSectionGeo)     { langSectionGeo.dispose();     langSectionGeo     = null; }
+  if (langChipMesh)       { scene.remove(langChipMesh);       (langChipMesh.material       as THREE.ShaderMaterial).dispose(); langChipMesh       = null; }
+  if (langChipGeo)        { langChipGeo.dispose();        langChipGeo        = null; }
+  if (detailSectionMesh)  { scene.remove(detailSectionMesh);  (detailSectionMesh.material  as THREE.ShaderMaterial).dispose(); detailSectionMesh  = null; }
+  if (detailSectionGeo)   { detailSectionGeo.dispose();   detailSectionGeo   = null; }
+  if (detailChipMesh)     { scene.remove(detailChipMesh);     (detailChipMesh.material     as THREE.ShaderMaterial).dispose(); detailChipMesh     = null; }
+  if (detailChipGeo)      { detailChipGeo.dispose();      detailChipGeo      = null; }
 
-  if (langSectionMesh) { scene.remove(langSectionMesh); (langSectionMesh.material as THREE.ShaderMaterial).dispose(); langSectionMesh = null; }
-  if (langSectionGeo)  { langSectionGeo.dispose(); langSectionGeo = null; }
-  if (langChipMesh) { scene.remove(langChipMesh); (langChipMesh.material as THREE.ShaderMaterial).dispose(); langChipMesh = null; }
-  if (langChipGeo)  { langChipGeo.dispose(); langChipGeo = null; }
-
+  clearParticles(labelIndices);
+  clearParticles(outlineIndices);
+  clearParticles(fillIndices);
   clearParticles(langHeadIndices);
   clearParticles(langChipIndices);
+  clearParticles(detailHeadIndices);
+  clearParticles(detailChipIndices);
 
   if (savedCamPos && savedCamQuat && savedTarget) {
     camera.position.copy(savedCamPos);
@@ -358,4 +449,5 @@ export function leaveSettings(
 
   setFadeRate(0.25);
   if (orbitRef) { orbitRef.enabled = true; orbitRef = null; }
+  flushCubemapNow();
 }

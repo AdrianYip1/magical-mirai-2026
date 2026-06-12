@@ -54,6 +54,7 @@ export function drawSphere(
       fragmentShader: glassFrag,
       uniforms,
       transparent: true,
+      depthWrite:  false,
       side: THREE.DoubleSide,
     })
   );

@@ -9,6 +9,7 @@
   perspective: 900px;
   overflow: hidden;
   font-family: 'Noto Sans JP', monospace, sans-serif;
+  cursor: grab;
 }
 
 .sss-hint {
