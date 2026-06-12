@@ -11,9 +11,17 @@ let loadedFont: Font | null = null;
 
 let layoutMaxLines = 1;
 
+export function getWordHalfExtentX(word: IWord): number {
+  for (const [, pd] of phraseData) {
+    const wd = pd.words.get(word);
+    if (wd) return Math.max(Math.abs(wd.xMin), Math.abs(wd.xMax));
+  }
+  return 0;
+}
+
 export function getLayoutHalfExtents(): { halfH: number; halfW: number } {
   const isMobile  = window.innerWidth < window.innerHeight;
-  const fontHalf  = isMobile ? 2.25 : 1.5;  // FONT_SIZE/2 * 1.5 scaling factor
+  const fontHalf  = isMobile ? 2.25 : 1.5;
   const halfH     = Math.max(fontHalf, (layoutMaxLines - 1) * 2.0 + fontHalf);
   const halfW     = 7.0;
   return { halfH, halfW };
@@ -164,6 +172,8 @@ type CharData = {
 
 type WordData = {
   chars: Map<IChar, CharData>;
+  xMin: number;
+  xMax: number;
 };
 
 type PhraseData = {
@@ -401,7 +411,13 @@ export function buildLayout(phrases: IPhrase[]) {
           charCursor += charWidth + CHAR_SPACING;
         }
 
-        wordMap.set(word, { chars: charMap });
+        let xMin = Infinity, xMax = -Infinity;
+        for (const [, cd] of charMap) {
+          cd.geo.computeBoundingBox();
+          xMin = Math.min(xMin, cd.geo.boundingBox!.min.x);
+          xMax = Math.max(xMax, cd.geo.boundingBox!.max.x);
+        }
+        wordMap.set(word, { chars: charMap, xMin, xMax });
         cursor += wordWidths[j] + SPACING;
       }
       yPos -= LINE_HEIGHT;

@@ -10,36 +10,38 @@ import { scene, glassInnerUniforms, applyDetailMode, flushCubemapNow } from './r
 import lyricGlassVert from './shaders/lyric-glass.vert?raw';
 import lyricGlassFrag from './shaders/lyric-glass.frag?raw';
 
-const BAR_HALF_W = 1.32;
+const FONT_SCALE = window.innerWidth < window.innerHeight ? 1.5 : 1.0;
+
+const BAR_HALF_W = 1.32 * FONT_SCALE;
 const BAR_LEFT   = -BAR_HALF_W;
 const BAR_RIGHT  =  BAR_HALF_W;
-const BAR_BOTTOM = -0.46;
-const BAR_TOP    = -0.14;
+const BAR_BOTTOM = -0.46 * FONT_SCALE;
+const BAR_TOP    = -0.14 * FONT_SCALE;
 const BAR_WIDTH  = BAR_RIGHT  - BAR_LEFT;
 const BAR_HEIGHT = BAR_TOP    - BAR_BOTTOM;
-const LABEL_Y    =  0.42;
-const LABEL_SIZE =  0.72;
+const LABEL_Y    =  0.42 * FONT_SCALE;
+const LABEL_SIZE =  0.72 * FONT_SCALE;
 
-const LANG_SECTION_Y    = -1.20;
-const LANG_SECTION_SIZE =  0.72;
-const LANG_CHIP_Y       = -2.00;
-const LANG_CHIP_SIZE    =  0.65;
+const LANG_SECTION_Y    = -1.20 * FONT_SCALE;
+const LANG_SECTION_SIZE =  0.72 * FONT_SCALE;
+const LANG_CHIP_Y       = -2.00 * FONT_SCALE;
+const LANG_CHIP_SIZE    =  0.65 * FONT_SCALE;
 
-const DETAIL_SECTION_Y    = -3.00;
-const DETAIL_SECTION_SIZE =  0.72;
-const DETAIL_CHIP_Y       = -3.80;
-const DETAIL_CHIP_SIZE    =  0.65;
+const DETAIL_SECTION_Y    = -3.00 * FONT_SCALE;
+const DETAIL_SECTION_SIZE =  0.72 * FONT_SCALE;
+const DETAIL_CHIP_Y       = -3.80 * FONT_SCALE;
+const DETAIL_CHIP_SIZE    =  0.65 * FONT_SCALE;
 
-const SPIN_SECTION_Y    = -4.80;
-const SPIN_SECTION_SIZE =  0.72;
-const SPIN_CHIP_Y       = -5.60;
-const SPIN_CHIP_SIZE    =  0.65;
+const SPIN_SECTION_Y    = -4.80 * FONT_SCALE;
+const SPIN_SECTION_SIZE =  0.72 * FONT_SCALE;
+const SPIN_CHIP_Y       = -5.60 * FONT_SCALE;
+const SPIN_CHIP_SIZE    =  0.65 * FONT_SCALE;
 
 const CONTENT_TOP    = LABEL_Y       + LABEL_SIZE       * 0.6;
 const CONTENT_BOTTOM = SPIN_CHIP_Y   - SPIN_CHIP_SIZE   * 0.6;
 const CONTENT_MID_Y  = (CONTENT_TOP + CONTENT_BOTTOM) / 2;
 const CONTENT_HALF_H = (CONTENT_TOP - CONTENT_BOTTOM) / 2;
-const LAYOUT_HALF_W  = 2.5;
+const LAYOUT_HALF_W  = 2.5 * FONT_SCALE;
 
 const SCALE         = COUNT / 65536;
 const LABEL_COUNT   = Math.round(10_000 * SCALE);

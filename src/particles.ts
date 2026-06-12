@@ -154,7 +154,8 @@ const renderMaterial = new THREE.ShaderMaterial({
     uEnvMap: { value: null },
     uAssignmentTex: { value: assignmentTex },
     uColorTex: { value: colorTex },
-    uDpr: { value: window.devicePixelRatio || 1 },
+    uDpr:        { value: window.devicePixelRatio || 1 },
+    uPointScale: { value: window.innerWidth < window.innerHeight ? 2.0 : 3.0 },
   },
 });
 

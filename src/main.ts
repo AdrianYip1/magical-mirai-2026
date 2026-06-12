@@ -6,7 +6,7 @@ import { mountSphereSongSelect, getLastMenuParticles } from './sphereSelect';
 import type { WheelItem, DiParticle } from './sphereSelect';
 import type { SongOption } from './songSelect';
 import songs from './songs';
-import { initLyrics, setWord, setChar, clearCurrentWord, clearPhrase, buildLayout, displayStaticText, clearStaticText, clearLyricMeshes, getLayoutHalfExtents } from './lyrics';
+import { initLyrics, setWord, setChar, clearCurrentWord, clearPhrase, buildLayout, displayStaticText, clearStaticText, clearLyricMeshes, getLayoutHalfExtents, getWordHalfExtentX } from './lyrics';
 import { clearAllParticles, activateWordParticles, setFadeRate, COUNT, points as particlePoints } from './particles';
 import * as previewAudio from './previewAudio';
 import { getVolume } from './volume';
@@ -45,7 +45,7 @@ previewAudio.hydrateFromCache(songs.map(s => s.url));
 // the first gesture grants the page audio permission for the rest of the
 // session, so later (async) plays are allowed.
 function makeSilentWav(): string {
-  const sampleRate = 8000, samples = 80;            // ~0.01s of digital silence
+  const sampleRate = 8000, samples = 80; // ~0.01s of silence
   const buf = new ArrayBuffer(44 + samples);
   const v = new DataView(buf);
   const w = (off: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
@@ -154,13 +154,46 @@ function hideLoading(gen: number) {
   setPreviewLoading(false);
 }
 
+let mobileCameraZTarget  = 12;
+let mobileCameraZRaf     = 0;
+let phraseCameraZMax     = 0; // highest Z needed by any word in the current phrase
+
+function tickMobileCameraZ() {
+  const diff = mobileCameraZTarget - camera.position.z;
+  if (Math.abs(diff) < 0.05) {
+    camera.position.z = mobileCameraZTarget;
+    mobileCameraZRaf  = 0;
+    return;
+  }
+  camera.position.z += diff * 0.06;
+  controls.update();
+  mobileCameraZRaf = requestAnimationFrame(tickMobileCameraZ);
+}
+
+function setMobileCameraZ(z: number) {
+  mobileCameraZTarget = z;
+  if (!mobileCameraZRaf) mobileCameraZRaf = requestAnimationFrame(tickMobileCameraZ);
+}
+
 function computeSongCameraZ(): number {
-  const { halfH } = getLayoutHalfExtents();
+  const { halfH, halfW } = getLayoutHalfExtents();
   const fovHalf = (camera.fov / 2) * (Math.PI / 180);
-  const fill    = 0.85; // ~7.5% whitespace top+bottom
-  const zForH   = halfH / (Math.tan(fovHalf) * fill);
-  const minZ    = window.innerWidth < window.innerHeight ? 8 : 12;
-  return Math.max(zForH, minZ);
+  const aspect  = canvas.clientWidth / canvas.clientHeight;
+
+  const MOBILE_FILL  = 0.70;
+  const MOBILE_MIN_Z = 9;
+  const PC_FILL   = 0.70;
+  const PC_MIN_Z  = 12;
+
+  const isMobileView = window.innerWidth < window.innerHeight;
+  const minZ = isMobileView ? MOBILE_MIN_Z : PC_MIN_Z;
+
+  if (isMobileView) {
+    const zForW = halfW / (Math.tan(fovHalf) * aspect * MOBILE_FILL);
+    return Math.max(zForW, minZ);
+  }
+  const zForH = halfH / (Math.tan(fovHalf) * PC_FILL);
+  return Math.max(zForH, PC_MIN_Z);
 }
 
 // Songs that need the camera outside the outer sphere to show reflections/refractions.
@@ -494,6 +527,10 @@ player.addListener({
         setTimeout(() => clearPhrase(stale), 900);
       }
       currentPhrase = phrase;
+      if (window.innerWidth < window.innerHeight && focusedUrl) {
+        phraseCameraZMax = effectiveSongCameraZ(focusedUrl);
+        setMobileCameraZ(phraseCameraZMax);
+      }
     }
 
     if (inPlayback && !(awaitingSeek && position > 2000)) {
@@ -502,8 +539,19 @@ player.addListener({
       const word = player.video.findWord(position);
       if (word !== currentWord) {
         currentWord = word;
-        if (word) setWord(word);
-        else clearCurrentWord();
+        if (word) {
+          setWord(word);
+          if (window.innerWidth < window.innerHeight && focusedUrl) {
+            const fovHalf = (camera.fov / 2) * (Math.PI / 180);
+            const aspect  = canvas.clientWidth / canvas.clientHeight;
+            const MOBILE_FILL = 0.70;
+            const halfX    = getWordHalfExtentX(word);
+            const zForWord = halfX / (Math.tan(fovHalf) * aspect * MOBILE_FILL);
+            const baseZ    = effectiveSongCameraZ(focusedUrl);
+            phraseCameraZMax = Math.max(phraseCameraZMax, zForWord, baseZ);
+            setMobileCameraZ(phraseCameraZMax);
+          }
+        } else clearCurrentWord();
       }
 
       const char = player.video.findChar(position);
