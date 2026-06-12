@@ -12,8 +12,11 @@ let loadedFont: Font | null = null;
 let layoutMaxLines = 1;
 
 export function getLayoutHalfExtents(): { halfH: number; halfW: number } {
-  const halfH = Math.max(1.5, (layoutMaxLines - 1) * 2.0 + 1.5); // (lines-1)*LINE_HEIGHT/2 + font_half
-  return { halfH, halfW: 7.0 }; // halfW = MAX_WIDTH / 2
+  const isMobile  = window.innerWidth < window.innerHeight;
+  const fontHalf  = isMobile ? 2.25 : 1.5;  // FONT_SIZE/2 * 1.5 scaling factor
+  const halfH     = Math.max(fontHalf, (layoutMaxLines - 1) * 2.0 + fontHalf);
+  const halfW     = (isMobile ? 7.0 : 14.0) / 2;
+  return { halfH, halfW };
 }
 
 export function initLyrics(onReady: () => void) {
@@ -323,10 +326,13 @@ export function buildLayout(phrases: IPhrase[]) {
     const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
   }
 
+  const isMobile     = window.innerWidth < window.innerHeight;
+  const FONT_SIZE    = isMobile ? 3.0 : 2.0;
+  const DEPTH        = isMobile ? 0.6 : 0.4;
   const LINE_HEIGHT  = 4.0;
   const SPACING      = 0.5;
   const CHAR_SPACING = 0.35;
-  const MAX_WIDTH    = 14.0;
+  const MAX_WIDTH    = isMobile ? 7.0 : 14.0;
 
   let poolOffset = 0;
 
@@ -338,7 +344,7 @@ export function buildLayout(phrases: IPhrase[]) {
 
     const wordWidths: number[] = [];
     for (const word of words) {
-      const geo = new TextGeometry(word.text, { font: loadedFont!, size: 2.0, depth: 0.4, curveSegments: 4 });
+      const geo = new TextGeometry(word.text, { font: loadedFont!, size: FONT_SIZE, depth: DEPTH, curveSegments: 4 });
       geo.computeBoundingBox();
       const baseWidth = geo.boundingBox!.max.x - geo.boundingBox!.min.x;
       const gaps      = Math.max(0, word.children.length - 1) * CHAR_SPACING;
@@ -373,7 +379,7 @@ export function buildLayout(phrases: IPhrase[]) {
 
         for (let ci = 0; ci < chars.length; ci++) {
           const char = chars[ci];
-          const geo  = new TextGeometry(char.text, { font: loadedFont!, size: 2.0, depth: 0.4, curveSegments: 4 });
+          const geo  = new TextGeometry(char.text, { font: loadedFont!, size: FONT_SIZE, depth: DEPTH, curveSegments: 4 });
           geo.computeBoundingBox();
           const charWidth = geo.boundingBox!.max.x - geo.boundingBox!.min.x;
           const center    = new THREE.Vector3();

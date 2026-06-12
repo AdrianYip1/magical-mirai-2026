@@ -155,13 +155,11 @@ function hideLoading(gen: number) {
 }
 
 function computeSongCameraZ(): number {
-  const { halfH, halfW } = getLayoutHalfExtents();
+  const { halfH } = getLayoutHalfExtents();
   const fovHalf = (camera.fov / 2) * (Math.PI / 180);
-  const aspect  = canvas.clientWidth / canvas.clientHeight;
   const fill    = 0.70; // 15% whitespace top+bottom
   const zForH   = halfH / (Math.tan(fovHalf) * fill);
-  const zForW   = halfW / (Math.tan(fovHalf) * aspect * fill);
-  return Math.max(Math.max(zForH, zForW), 12); // min Z=12 keeps camera between spheres
+  return Math.max(zForH, 12); // min Z=12 keeps camera between spheres
 }
 
 // Songs that need the camera outside the outer sphere to show reflections/refractions.
