@@ -2,6 +2,7 @@ uniform vec3        uCameraPos;
 uniform samplerCube uEnvMap;
 uniform float       uBeatIntensity;
 uniform float       uOpacity;
+uniform float       uFill;  // 0 = dark transparent glass, 1 = bright white glass
 
 varying vec3 vNormal;
 varying vec3 vWorldPos;
@@ -18,13 +19,13 @@ void main() {
     float rim      = pow(1.0 - cosTheta, 1.5);
 
     vec3 R        = reflect(-V, N);
-    vec3 envRefl  = textureCube(uEnvMap, R).rgb * fres * 2.0;
+    vec3 envRefl  = textureCube(uEnvMap, R).rgb * fres * mix(1.6, 2.0, uFill);
 
-    vec3 glassBase = vec3(0.65, 0.88, 1.0);
-    vec3 rimGlow   = glassBase * rim * (1.5 + uBeatIntensity * 2.0);
+    vec3 glassBase = mix(vec3(0.38, 0.62, 0.82), vec3(0.65, 0.88, 1.0), uFill);
+    vec3 rimGlow   = glassBase * rim * (mix(0.8, 1.4, uFill) + uBeatIntensity * mix(1.6, 2.0, uFill));
 
-    vec3  color = glassBase * 0.6 + envRefl + rimGlow;
-    float alpha = (0.55 + rim * 0.45) * uOpacity;
+    vec3  color = glassBase * mix(0.06, 0.55, uFill) + envRefl + rimGlow;
+    float alpha = (mix(0.22, 0.55, uFill) + rim * mix(0.42, 0.45, uFill)) * uOpacity;
 
     gl_FragColor = vec4(color, alpha);
 }

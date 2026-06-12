@@ -42,16 +42,16 @@ const CONTENT_HALF_H = (CONTENT_TOP - CONTENT_BOTTOM) / 2;
 const LAYOUT_HALF_W  = 2.0;
 
 const SCALE         = COUNT / 65536;
-const LABEL_COUNT   = Math.round(14_000 * SCALE);
-const OUTLINE_COUNT = Math.round( 3_000 * SCALE);
-const FILL_COUNT    = Math.round( 9_000 * SCALE);
-const LANG_HEAD_COUNT = Math.round( 8_000 * SCALE);
-const LANG_CHIP_COUNT = Math.round( 6_000 * SCALE);
+const LABEL_COUNT   = Math.round(10_000 * SCALE);
+const OUTLINE_COUNT = Math.round( 2_500 * SCALE);
+const FILL_COUNT    = Math.round( 6_500 * SCALE);
+const LANG_HEAD_COUNT = Math.round(10_000 * SCALE);
+const LANG_CHIP_COUNT = Math.round( 8_000 * SCALE);
 
-const DETAIL_HEAD_COUNT = Math.round( 5_500 * SCALE);
-const DETAIL_CHIP_COUNT = Math.round( 4_000 * SCALE);
-const SPIN_HEAD_COUNT   = Math.round( 5_500 * SCALE);
-const SPIN_CHIP_COUNT   = Math.round( 4_000 * SCALE);
+const DETAIL_HEAD_COUNT = Math.round( 8_000 * SCALE);
+const DETAIL_CHIP_COUNT = Math.round( 6_000 * SCALE);
+const SPIN_HEAD_COUNT   = Math.round( 8_000 * SCALE);
+const SPIN_CHIP_COUNT   = Math.round( 6_000 * SCALE);
 
 const LANG_HEAD_BASE   = LABEL_COUNT + OUTLINE_COUNT + FILL_COUNT;
 const LANG_CHIP_BASE   = LANG_HEAD_BASE + LANG_HEAD_COUNT;
@@ -119,6 +119,10 @@ let spinChipGeo:     THREE.BufferGeometry | null = null;
 let spinChipMesh:    THREE.Mesh | null = null;
 let spinChipOverlay: HTMLDivElement | null = null;
 
+let langChipW = 400, langChipH = 120;
+let detailChipW = 300, detailChipH = 120;
+let spinChipW = 300, spinChipH = 120;
+
 let savedCamPos:  THREE.Vector3    | null = null;
 let savedCamQuat: THREE.Quaternion | null = null;
 let savedTarget:  THREE.Vector3    | null = null;
@@ -128,6 +132,103 @@ let overlayEl: HTMLDivElement | null = null;
 let isDragging = false;
 let barScreenL = 0;
 let barScreenW = 1;
+
+// ---- Vertical scroll state ----
+let scrollTargetY     = 0;
+let scrollCurrentY    = 0;
+let scrollMin         = 0;
+let scrollMax         = 0;
+let scrollWorldPerPx  = 0;
+let scrollRaf         = 0;
+let scrollDragActive  = false;
+let scrollDragStartPx = 0;
+let scrollDragStartTarget = 0;
+let scrollCam:    THREE.PerspectiveCamera | null = null;
+let scrollCanvas: HTMLCanvasElement       | null = null;
+
+function clampScroll(y: number): number {
+  return Math.max(scrollMin, Math.min(scrollMax, y));
+}
+
+function updateOverlayPositions(cam: THREE.PerspectiveCamera, cvs: HTMLCanvasElement) {
+  if (overlayEl) {
+    const tl  = worldToScreen(BAR_LEFT,  BAR_TOP,    cam, cvs);
+    const br  = worldToScreen(BAR_RIGHT, BAR_BOTTOM, cam, cvs);
+    const pad = 28;
+    Object.assign(overlayEl.style, {
+      left:   `${tl.x - pad}px`,
+      top:    `${tl.y - pad}px`,
+      width:  `${br.x - tl.x + pad * 2}px`,
+      height: `${br.y - tl.y + pad * 2}px`,
+    });
+    barScreenL = tl.x;
+    barScreenW = br.x - tl.x;
+  }
+  const moveChip = (el: HTMLDivElement | null, wy: number, W: number, H: number) => {
+    if (!el) return;
+    const p = worldToScreen(0, wy, cam, cvs);
+    el.style.left   = `${p.x - W / 2}px`;
+    el.style.top    = `${p.y - H / 2}px`;
+    el.style.width  = `${W}px`;
+    el.style.height = `${H}px`;
+  };
+  moveChip(langChipOverlay,   LANG_CHIP_Y,   langChipW,   langChipH);
+  moveChip(detailChipOverlay, DETAIL_CHIP_Y, detailChipW, detailChipH);
+  moveChip(spinChipOverlay,   SPIN_CHIP_Y,   spinChipW,   spinChipH);
+}
+
+function computeChipOverlaySize(
+  geo: THREE.BufferGeometry | null,
+  chipY: number,
+  camera: THREE.Camera,
+  canvasEl: HTMLCanvasElement,
+): { W: number; H: number } {
+  if (!geo?.boundingBox) return { W: 400, H: 120 };
+  const leftPt  = worldToScreen(geo.boundingBox.min.x, chipY, camera, canvasEl);
+  const rightPt = worldToScreen(geo.boundingBox.max.x, chipY, camera, canvasEl);
+  const topPt   = worldToScreen(0, geo.boundingBox.max.y, camera, canvasEl);
+  const botPt   = worldToScreen(0, geo.boundingBox.min.y, camera, canvasEl);
+  return {
+    W: Math.ceil(rightPt.x - leftPt.x) + 120,
+    H: Math.ceil(botPt.y   - topPt.y)  + 80,
+  };
+}
+
+function scrollRafTick() {
+  if (!scrollCam || !orbitRef || !scrollCanvas) return;
+  scrollCurrentY += (scrollTargetY - scrollCurrentY) * 0.12;
+  scrollCam.position.y = scrollCurrentY;
+  orbitRef.target.y    = scrollCurrentY;
+  orbitRef.update();
+  scrollCam.updateMatrixWorld(true);
+  updateOverlayPositions(scrollCam, scrollCanvas);
+  scrollRaf = requestAnimationFrame(scrollRafTick);
+}
+
+function onScrollWheel(e: WheelEvent) {
+  e.preventDefault();
+  scrollTargetY = clampScroll(scrollTargetY - e.deltaY * scrollWorldPerPx * 0.3);
+}
+
+function onScrollPointerDown(e: PointerEvent) {
+  if (overlayEl?.contains(e.target as Node))         return;
+  if (langChipOverlay?.contains(e.target as Node))   return;
+  if (detailChipOverlay?.contains(e.target as Node)) return;
+  if (spinChipOverlay?.contains(e.target as Node))   return;
+  scrollDragActive      = true;
+  scrollDragStartPx     = e.clientY;
+  scrollDragStartTarget = scrollTargetY;
+}
+
+function onScrollPointerMove(e: PointerEvent) {
+  if (!scrollDragActive) return;
+  const dy = e.clientY - scrollDragStartPx;
+  scrollTargetY = clampScroll(scrollDragStartTarget + dy * scrollWorldPerPx);
+}
+
+function onScrollPointerUp() {
+  scrollDragActive = false;
+}
 
 function sampleOutline(): Float32Array {
   const out = new Float32Array(OUTLINE_COUNT * 4);
@@ -211,16 +312,16 @@ function setupOverlay(camera: THREE.Camera, canvasEl: HTMLCanvasElement) {
 function setupChipOverlay(
   camera: THREE.Camera,
   canvasEl: HTMLCanvasElement,
+  W: number, H: number,
   onToggle: () => void,
 ) {
-  const W = 140, H = 80;
   const pos = worldToScreen(0, LANG_CHIP_Y, camera, canvasEl);
 
   langChipOverlay = document.createElement('div');
   Object.assign(langChipOverlay.style, {
     position:    'fixed',
     cursor:      'pointer',
-    zIndex:      '20',
+    zIndex:      '10001',
     touchAction: 'none',
     left:        `${pos.x - W / 2}px`,
     top:         `${pos.y - H / 2}px`,
@@ -228,7 +329,7 @@ function setupChipOverlay(
     height:      `${H}px`,
   });
   document.body.appendChild(langChipOverlay);
-  langChipOverlay.addEventListener('pointerdown', onToggle);
+  langChipOverlay.addEventListener('pointerdown', (e) => { e.stopPropagation(); onToggle(); });
 }
 
 function fromPointerX(clientX: number): number {
@@ -286,7 +387,7 @@ function rebuildChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   if (langChipMesh) { scene.remove(langChipMesh); (langChipMesh.material as THREE.ShaderMaterial).dispose(); langChipMesh = null; }
   if (langChipGeo)  { langChipGeo.dispose(); langChipGeo = null; }
 
-  const text = getLanguage() === 'ja' ? '日本語' : '英語';
+  const text = getLanguage() === 'ja' ? '日本語 JP' : 'EN 英語';
   langChipGeo = new TextGeometry(text, { font, size: LANG_CHIP_SIZE, depth: 0.15, curveSegments: 4 });
   langChipGeo.computeBoundingBox();
   const bb = langChipGeo.boundingBox!;
@@ -379,16 +480,16 @@ function rebuildSpinChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
 function setupDetailChipOverlay(
   camera: THREE.Camera,
   canvasEl: HTMLCanvasElement,
+  W: number, H: number,
   onToggle: () => void,
 ) {
-  const W = 140, H = 80;
   const pos = worldToScreen(0, DETAIL_CHIP_Y, camera, canvasEl);
 
   detailChipOverlay = document.createElement('div');
   Object.assign(detailChipOverlay.style, {
     position:    'fixed',
     cursor:      'pointer',
-    zIndex:      '20',
+    zIndex:      '10001',
     touchAction: 'none',
     left:        `${pos.x - W / 2}px`,
     top:         `${pos.y - H / 2}px`,
@@ -396,22 +497,22 @@ function setupDetailChipOverlay(
     height:      `${H}px`,
   });
   document.body.appendChild(detailChipOverlay);
-  detailChipOverlay.addEventListener('pointerdown', onToggle);
+  detailChipOverlay.addEventListener('pointerdown', (e) => { e.stopPropagation(); onToggle(); });
 }
 
 function setupSpinChipOverlay(
   camera: THREE.Camera,
   canvasEl: HTMLCanvasElement,
+  W: number, H: number,
   onToggle: () => void,
 ) {
-  const W = 140, H = 80;
   const pos = worldToScreen(0, SPIN_CHIP_Y, camera, canvasEl);
 
   spinChipOverlay = document.createElement('div');
   Object.assign(spinChipOverlay.style, {
     position:    'fixed',
     cursor:      'pointer',
-    zIndex:      '20',
+    zIndex:      '10001',
     touchAction: 'none',
     left:        `${pos.x - W / 2}px`,
     top:         `${pos.y - H / 2}px`,
@@ -419,7 +520,7 @@ function setupSpinChipOverlay(
     height:      `${H}px`,
   });
   document.body.appendChild(spinChipOverlay);
-  spinChipOverlay.addEventListener('pointerdown', onToggle);
+  spinChipOverlay.addEventListener('pointerdown', (e) => { e.stopPropagation(); onToggle(); });
 }
 
 export function enterSettings(
@@ -443,12 +544,34 @@ export function enterSettings(
   const zForH   = CONTENT_HALF_H / Math.tan(fovHalf) * 0.85;
   const zForW   = LAYOUT_HALF_W  / (Math.tan(fovHalf) * aspect) * 0.85;
   const z = Math.max(zForH, zForW, 1.5);
-  camera.position.set(0, CONTENT_MID_Y, z);
+
+  // Compute scroll bounds: if content overflows the viewport, allow panning.
+  const viewHalfH = Math.tan(fovHalf) * z;
+  if (viewHalfH >= CONTENT_HALF_H) {
+    scrollMin = scrollMax = CONTENT_MID_Y;
+  } else {
+    scrollMax = CONTENT_TOP    - viewHalfH;
+    scrollMin = CONTENT_BOTTOM + viewHalfH;
+  }
+  scrollTargetY  = scrollMax;
+  scrollCurrentY = scrollMax;
+  // world units per screen pixel (for drag/wheel conversion)
+  scrollWorldPerPx = (viewHalfH * 2) / canvasEl.clientHeight;
+
+  camera.position.set(0, scrollCurrentY, z);
   camera.quaternion.identity();
-  orbitControls.target.set(0, CONTENT_MID_Y, 0);
+  orbitControls.target.set(0, scrollCurrentY, 0);
   orbitControls.update();
   camera.updateProjectionMatrix();
   camera.updateMatrixWorld(true);
+
+  scrollCam    = camera;
+  scrollCanvas = canvasEl;
+  canvasEl.addEventListener('wheel', onScrollWheel, { passive: false });
+  window.addEventListener('pointerdown', onScrollPointerDown);
+  window.addEventListener('pointermove', onScrollPointerMove);
+  window.addEventListener('pointerup',   onScrollPointerUp);
+  scrollRaf = requestAnimationFrame(scrollRafTick);
 
   rebuildLabelMesh(font);
 
@@ -465,8 +588,12 @@ export function enterSettings(
   rebuildSpinSectionMesh(font);
   rebuildSpinChipMesh(font);
 
+  ({ W: langChipW,   H: langChipH   } = computeChipOverlaySize(langChipGeo,   LANG_CHIP_Y,   camera, canvasEl));
+  ({ W: detailChipW, H: detailChipH } = computeChipOverlaySize(detailChipGeo, DETAIL_CHIP_Y, camera, canvasEl));
+  ({ W: spinChipW,   H: spinChipH   } = computeChipOverlaySize(spinChipGeo,   SPIN_CHIP_Y,   camera, canvasEl));
+
   setupOverlay(camera, canvasEl);
-  setupChipOverlay(camera, canvasEl, () => {
+  setupChipOverlay(camera, canvasEl, langChipW, langChipH, () => {
     const f = getFont();
     if (!f) return;
     setLanguage(getLanguage() === 'en' ? 'ja' : 'en');
@@ -477,21 +604,32 @@ export function enterSettings(
     rebuildDetailChipMesh(f);
     rebuildSpinSectionMesh(f);
     rebuildSpinChipMesh(f);
+    if (scrollCam && scrollCanvas) {
+      ({ W: langChipW,   H: langChipH   } = computeChipOverlaySize(langChipGeo,   LANG_CHIP_Y,   scrollCam, scrollCanvas));
+      ({ W: detailChipW, H: detailChipH } = computeChipOverlaySize(detailChipGeo, DETAIL_CHIP_Y, scrollCam, scrollCanvas));
+      ({ W: spinChipW,   H: spinChipH   } = computeChipOverlaySize(spinChipGeo,   SPIN_CHIP_Y,   scrollCam, scrollCanvas));
+    }
   });
-  setupDetailChipOverlay(camera, canvasEl, () => {
+  setupDetailChipOverlay(camera, canvasEl, detailChipW, detailChipH, () => {
     const f = getFont();
     if (!f) return;
     const next = getDetailMode() === 'high' ? 'low' : 'high';
     setDetailMode(next);
     applyDetailMode(next);
     rebuildDetailChipMesh(f);
+    if (scrollCam && scrollCanvas) {
+      ({ W: detailChipW, H: detailChipH } = computeChipOverlaySize(detailChipGeo, DETAIL_CHIP_Y, scrollCam, scrollCanvas));
+    }
   });
-  setupSpinChipOverlay(camera, canvasEl, () => {
+  setupSpinChipOverlay(camera, canvasEl, spinChipW, spinChipH, () => {
     const f = getFont();
     if (!f) return;
     const next = getSphereSpin() === 'on' ? 'off' : 'on';
     setSphereSpin(next);
     rebuildSpinChipMesh(f);
+    if (scrollCam && scrollCanvas) {
+      ({ W: spinChipW, H: spinChipH } = computeChipOverlaySize(spinChipGeo, SPIN_CHIP_Y, scrollCam, scrollCanvas));
+    }
   });
 }
 
@@ -499,6 +637,17 @@ export function leaveSettings(
   camera: THREE.PerspectiveCamera,
   orbitControls: OrbitControls,
 ): void {
+  cancelAnimationFrame(scrollRaf);
+  scrollRaf = 0;
+  if (scrollCanvas) {
+    scrollCanvas.removeEventListener('wheel', onScrollWheel);
+  }
+  window.removeEventListener('pointerdown', onScrollPointerDown);
+  window.removeEventListener('pointermove', onScrollPointerMove);
+  window.removeEventListener('pointerup',   onScrollPointerUp);
+  scrollDragActive = false;
+  scrollCam = scrollCanvas = null;
+
   if (overlayEl) {
     overlayEl.removeEventListener('pointerdown', onDown);
     window.removeEventListener('pointermove',   onMove);

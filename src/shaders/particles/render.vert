@@ -1,6 +1,7 @@
 uniform sampler2D uState;
 uniform sampler2D uAssignmentTex;
 uniform float uBeat;
+uniform float uDpr;
 
 attribute vec2 aUv;
 
@@ -19,6 +20,6 @@ void main() {
 
     pos += normalize(pos + vec3(0.001)) * uBeat * 0.3;
 
-    gl_PointSize = 2.5;
+    gl_PointSize = 3.0 * uDpr;
     gl_Position  = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
 }

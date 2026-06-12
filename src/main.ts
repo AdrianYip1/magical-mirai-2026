@@ -1,7 +1,7 @@
 import './style.css';
 import * as THREE from 'three';
 import { Player, IPlayerApp, IWord, IPhrase, IBeat, IChar } from 'textalive-app-api';
-import { canvas, animate, glassInnerUniforms, glassOuterUniforms, renderer, scene, cubeCamera, cubeLargeCamera, triggerBeat, camera, controls, cylinderMesh, flushCubemapNow, setCylinderSegments, setMenuMode, setSettingsMode, setSongMode, menuState } from './renderer';
+import { canvas, animate, glassInnerUniforms, glassOuterUniforms, renderer, scene, cubeCamera, cubeLargeCamera, triggerBeat, camera, controls, cylinderMesh, flushCubemapNow, setCylinderSegments, setMenuMode, setSettingsMode, setSongMode, setHideOuterSphere, menuState } from './renderer';
 import { mountSphereSongSelect, getLastMenuParticles } from './sphereSelect';
 import type { WheelItem, DiParticle } from './sphereSelect';
 import type { SongOption } from './songSelect';
@@ -298,6 +298,8 @@ function triggerBack() {
   currentWord = currentChar = currentPhrase = null;
   desired = null; // cancel any queued load callback so the song doesn't start after going back
 
+  setHideOuterSphere(true);
+
   if (wasUtility === 'settings') { setSettingsMode(false); leaveSettings(camera, controls); }
   else {
     clearStaticText(); setFadeRate(0.25);
@@ -310,7 +312,6 @@ function triggerBack() {
       controls.update();
     }
   }
-  particlePoints.visible = false;
 
   const prevWheel = wheel;
   prevWheel.abortDisintegration();
@@ -320,6 +321,9 @@ function triggerBack() {
   if (menuPtcls.length > 0) {
     const { indices, samples, colors } = buildMenuTargets(menuPtcls);
     activateWordParticles(indices, samples, colors);
+    particlePoints.visible = true;
+  } else {
+    particlePoints.visible = false;
   }
 
   wheel = remountMenu(selectedSongIndex, true);
@@ -336,10 +340,12 @@ function triggerBack() {
     canvas.style.transition = 'opacity 0.5s';
     canvas.style.opacity = '0';
     clearAllParticles();
+    particlePoints.visible = false;
     setTimeout(() => {
       if (backGen !== myGen) return;
       menuState.cylAngle = -selectedSongIndex * (2 * Math.PI / wheelItems.length);
       setMenuMode(true);
+      setHideOuterSphere(false);
       cylinderMesh.visible = true;
       canvas.style.transition = 'opacity 0.5s';
       canvas.style.opacity = '1';

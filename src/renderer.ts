@@ -91,7 +91,8 @@ export const glassInnerUniforms = {
   uEnvMap:       { value: cubeRenderTarget.texture },
   uSceneTexture: { value: null as THREE.Texture | null },
   uRadius:       { value: SPHERE_RADIUS },
-  uDetailLevel:    { value: 1.0 },
+  uDetailLevel:  { value: 1.0 },
+  uFill:         { value: 0.0 },
 };
 
 export const glassOuterUniforms = {
@@ -100,7 +101,8 @@ export const glassOuterUniforms = {
   uEnvMap:       { value: cubeLargeRenderTarget.texture },
   uSceneTexture: { value: null as THREE.Texture | null },
   uRadius:       { value: SPHERE_RADIUS * 3 },
-  uDetailLevel:    { value: 1.0 },
+  uDetailLevel:  { value: 1.0 },
+  uFill:         { value: 0.0 },
 };
 
 export const sphereMesh = drawSphere(scene, MIN_VERTS, glassInnerUniforms, 1);
@@ -164,6 +166,7 @@ export const cylinderMesh = new THREE.Mesh(
       uEnvMap:        glassInnerUniforms.uEnvMap,
       uBeatIntensity: glassInnerUniforms.uBeatIntensity,
       uOpacity:       { value: 0.7 },
+      uFill:          { value: 1.0 },
     },
     transparent: true,
     depthWrite:  false,
@@ -194,7 +197,14 @@ export function setSettingsMode(active: boolean) { settingsMode = active; }
 
 let songMode = false;
 /** True while a song is playing — the sphere rotates if sphere spin is enabled. */
-export function setSongMode(active: boolean) { songMode = active; }
+export function setSongMode(active: boolean) {
+  songMode = active;
+  controls.enableRotate = !active;
+}
+
+let hideOuterSphere = false;
+/** Suppresses the outer glass sphere regardless of menu/song mode (use during back transitions). */
+export function setHideOuterSphere(v: boolean) { hideOuterSphere = v; }
 
 const fadeScene  = new THREE.Scene();
 fadeScene.add(new THREE.Mesh(
@@ -220,7 +230,7 @@ export function flushCubemapNow() {
   largerSphereMesh.visible = false;
   auroraMesh.visible      = false;
   activeCubeCamera.update(renderer, scene);
-  if (outerSphereActive && !menuMode) largerSphereMesh.visible = true;
+  if (outerSphereActive && !menuMode && !hideOuterSphere) largerSphereMesh.visible = true;
   auroraMesh.visible = true;
 }
 
@@ -314,7 +324,7 @@ export function animate() {
     }
   }
 
-  if (outerSphereActive && !menuMode) largerSphereMesh.visible = true;
+  if (outerSphereActive && !menuMode && !hideOuterSphere) largerSphereMesh.visible = true;
   auroraMesh.visible = true;
 
   renderer.setRenderTarget(null);
