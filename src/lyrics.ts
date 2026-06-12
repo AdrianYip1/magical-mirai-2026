@@ -15,7 +15,7 @@ export function getLayoutHalfExtents(): { halfH: number; halfW: number } {
   const isMobile  = window.innerWidth < window.innerHeight;
   const fontHalf  = isMobile ? 2.25 : 1.5;  // FONT_SIZE/2 * 1.5 scaling factor
   const halfH     = Math.max(fontHalf, (layoutMaxLines - 1) * 2.0 + fontHalf);
-  const halfW     = (isMobile ? 11.0 : 14.0) / 2;
+  const halfW     = 7.0;
   return { halfH, halfW };
 }
 
@@ -332,7 +332,7 @@ export function buildLayout(phrases: IPhrase[]) {
   const LINE_HEIGHT  = 4.0;
   const SPACING      = 0.5;
   const CHAR_SPACING = 0.35;
-  const MAX_WIDTH    = isMobile ? 11.0 : 14.0;
+  const MAX_WIDTH    = 14.0;
 
   let poolOffset = 0;
 
@@ -340,7 +340,8 @@ export function buildLayout(phrases: IPhrase[]) {
     const words       = phrase.children;
     const wordMap     = new Map<IWord, WordData>();
     const phraseChars = words.reduce((s, w) => s + Math.max(w.children.length, 1), 0);
-    const perChar     = Math.max(1, Math.floor(COUNT / Math.max(phraseChars, 1)));
+    const divisor     = isMobile ? Math.max(phraseChars * 0.5, 1) : phraseChars;
+    const perChar     = Math.max(1, Math.floor(COUNT / divisor));
 
     const wordWidths: number[] = [];
     for (const word of words) {

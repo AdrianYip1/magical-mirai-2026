@@ -157,7 +157,7 @@ function hideLoading(gen: number) {
 function computeSongCameraZ(): number {
   const { halfH } = getLayoutHalfExtents();
   const fovHalf = (camera.fov / 2) * (Math.PI / 180);
-  const fill    = 0.70; // 15% whitespace top+bottom
+  const fill    = 0.85; // ~7.5% whitespace top+bottom
   const zForH   = halfH / (Math.tan(fovHalf) * fill);
   const minZ    = window.innerWidth < window.innerHeight ? 8 : 12;
   return Math.max(zForH, minZ);
