@@ -529,7 +529,7 @@ player.addListener({
         setTimeout(() => clearPhrase(stale), 900);
       }
       currentPhrase = phrase;
-      if (focusedUrl) {
+      if (focusedUrl && inPlayback) {
         phraseCameraZMax = effectiveSongCameraZ(focusedUrl);
         setWordCameraZ(phraseCameraZMax);
       }

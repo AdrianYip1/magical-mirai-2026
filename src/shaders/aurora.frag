@@ -92,9 +92,9 @@ void main() {
     // Each band's base altitude drifts independently on a slow sinusoid so they
     // drift toward each other (merging into one bright mass) and apart again.
     // Ranges chosen so all three can coincide briefly near Y ≈ 0.
-    float y0 = -0.20 + sin(uTime * 0.031)           * 0.14;
-    float y1 =  0.05 + sin(uTime * 0.041 + 1.40)    * 0.12;
-    float y2 =  0.25 + sin(uTime * 0.027 + 2.60)    * 0.15;
+    float y0 = -0.50 + sin(uTime * 0.031)           * 0.14;
+    float y1 = -0.25 + sin(uTime * 0.041 + 1.40)    * 0.12;
+    float y2 = -0.05 + sin(uTime * 0.027 + 2.60)    * 0.15;
 
     // 2-D drift: X for left/right sweep, Z for front/back flow.
     vec2 drift0 = vec2(sin(uTime * 0.050)         * 0.10,
@@ -111,6 +111,10 @@ void main() {
 #if AURORA_BANDS >= 3
     col += auroraBand(dir, t, y2, 3.4, drift2) * 0.55;
 #endif
+
+    // Reflected floor glow — aurora colours pooling below the carousel
+    float floorGlow = pow(max(0.0, -dir.y), 1.5) * 0.09;
+    col += mix(vec3(0.78, 0.04, 0.46), vec3(0.00, 0.82, 0.58), 0.35) * floorGlow;
 
     gl_FragColor = vec4(col, 1.0);
 }
