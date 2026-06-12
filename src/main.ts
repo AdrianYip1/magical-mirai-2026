@@ -31,9 +31,6 @@ cubeLargeCamera.update(renderer, scene);
 animate();
 
 let timerReady = false;
-document.getElementById('play')!.addEventListener('click', () => {
-  if (timerReady) { player.volume = getVolume() * 100; player.requestPlay(); }
-});
 
 const player = new Player({
   app: { token: import.meta.env.VITE_TEXTALIVE_TOKEN ?? '' },
