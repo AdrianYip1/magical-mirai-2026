@@ -18,28 +18,28 @@ const BAR_TOP    = -0.14;
 const BAR_WIDTH  = BAR_RIGHT  - BAR_LEFT;
 const BAR_HEIGHT = BAR_TOP    - BAR_BOTTOM;
 const LABEL_Y    =  0.42;
-const LABEL_SIZE =  0.6;
+const LABEL_SIZE =  0.72;
 
-const LANG_SECTION_Y    = -1.02;
-const LANG_SECTION_SIZE =  0.6;
-const LANG_CHIP_Y       = -1.70;
-const LANG_CHIP_SIZE    =  0.52;
+const LANG_SECTION_Y    = -1.20;
+const LANG_SECTION_SIZE =  0.72;
+const LANG_CHIP_Y       = -2.00;
+const LANG_CHIP_SIZE    =  0.65;
 
-const DETAIL_SECTION_Y    = -2.40;
-const DETAIL_SECTION_SIZE =  0.6;
-const DETAIL_CHIP_Y       = -3.06;
-const DETAIL_CHIP_SIZE    =  0.52;
+const DETAIL_SECTION_Y    = -3.00;
+const DETAIL_SECTION_SIZE =  0.72;
+const DETAIL_CHIP_Y       = -3.80;
+const DETAIL_CHIP_SIZE    =  0.65;
 
-const SPIN_SECTION_Y    = -3.76;
-const SPIN_SECTION_SIZE =  0.6;
-const SPIN_CHIP_Y       = -4.42;
-const SPIN_CHIP_SIZE    =  0.52;
+const SPIN_SECTION_Y    = -4.80;
+const SPIN_SECTION_SIZE =  0.72;
+const SPIN_CHIP_Y       = -5.60;
+const SPIN_CHIP_SIZE    =  0.65;
 
 const CONTENT_TOP    = LABEL_Y       + LABEL_SIZE       * 0.6;
 const CONTENT_BOTTOM = SPIN_CHIP_Y   - SPIN_CHIP_SIZE   * 0.6;
 const CONTENT_MID_Y  = (CONTENT_TOP + CONTENT_BOTTOM) / 2;
 const CONTENT_HALF_H = (CONTENT_TOP - CONTENT_BOTTOM) / 2;
-const LAYOUT_HALF_W  = 2.0;
+const LAYOUT_HALF_W  = 2.5;
 
 const SCALE         = COUNT / 65536;
 const LABEL_COUNT   = Math.round(10_000 * SCALE);
@@ -88,6 +88,7 @@ function makeGlassMat(): THREE.ShaderMaterial {
       uEnvMap:        glassInnerUniforms.uEnvMap,
       uBeatIntensity: glassInnerUniforms.uBeatIntensity,
       uOpacity:       { value: 1.0 },
+      uFill:          { value: 1.0 },
     },
     transparent: true,
     depthWrite:  false,

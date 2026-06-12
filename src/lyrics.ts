@@ -9,6 +9,13 @@ import lyricGlassFrag from './shaders/lyric-glass.frag?raw';
 
 let loadedFont: Font | null = null;
 
+let layoutMaxLines = 1;
+
+export function getLayoutHalfExtents(): { halfH: number; halfW: number } {
+  const halfH = Math.max(1.5, (layoutMaxLines - 1) * 2.0 + 1.5); // (lines-1)*LINE_HEIGHT/2 + font_half
+  return { halfH, halfW: 7.0 }; // halfW = MAX_WIDTH / 2
+}
+
 export function initLyrics(onReady: () => void) {
   const loader = new FontLoader();
   loader.load(import.meta.env.BASE_URL + 'MPLUS1-Black.typeface.json', (font) => {
@@ -70,7 +77,7 @@ function tickFade() {
         fadingMeshes.delete(mesh);
       }
     } else {
-      state.current += diff * 0.07;
+      state.current += diff * 0.20;
       (mesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = state.current;
       keepGoing = true;
     }
@@ -136,6 +143,7 @@ function makeCharMaterial(): THREE.ShaderMaterial {
       uEnvMap:        glassInnerUniforms.uEnvMap,
       uBeatIntensity: glassInnerUniforms.uBeatIntensity,
       uOpacity:       { value: 0.0 },
+      uFill:          { value: 1.0 },
     },
     transparent: true,
     depthWrite:  false,
@@ -297,6 +305,7 @@ export function displayStaticText(lines: string[]) {
 export function buildLayout(phrases: IPhrase[]) {
   if (!loadedFont) return;
 
+  layoutMaxLines = 1;
   clearLyricMeshes();
   phraseData.forEach(pd => pd.words.forEach(wd => wd.chars.forEach(cd => {
     if (cd.mesh) {
@@ -348,6 +357,7 @@ export function buildLayout(phrases: IPhrase[]) {
       lineWidth += wordWidths[j] + SPACING;
     }
 
+    layoutMaxLines = Math.max(layoutMaxLines, lines.length);
     const totalHeight = lines.length * LINE_HEIGHT;
     let yPos = (totalHeight - LINE_HEIGHT) / 2;
 

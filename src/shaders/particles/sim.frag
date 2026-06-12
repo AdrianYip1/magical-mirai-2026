@@ -104,7 +104,7 @@ void main() {
     float age_s        = max(0.0, uTime - activateTime);
     float fade         = active * max(0.0, 1.0 - age_s * uFadeRate);
 
-    vec3 velocity = mix(flow, toTarget * 6.0, fade);
+    vec3 velocity = mix(flow, toTarget * 9.0, fade);
     pos += velocity * speed * uDelta;
 
     age += uDelta * mix(0.50, 0.02, fade);

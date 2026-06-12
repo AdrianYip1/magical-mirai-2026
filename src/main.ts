@@ -6,7 +6,7 @@ import { mountSphereSongSelect, getLastMenuParticles } from './sphereSelect';
 import type { WheelItem, DiParticle } from './sphereSelect';
 import type { SongOption } from './songSelect';
 import songs from './songs';
-import { initLyrics, setWord, setChar, clearCurrentWord, clearPhrase, buildLayout, displayStaticText, clearStaticText, clearLyricMeshes } from './lyrics';
+import { initLyrics, setWord, setChar, clearCurrentWord, clearPhrase, buildLayout, displayStaticText, clearStaticText, clearLyricMeshes, getLayoutHalfExtents } from './lyrics';
 import { clearAllParticles, activateWordParticles, setFadeRate, COUNT, points as particlePoints } from './particles';
 import * as previewAudio from './previewAudio';
 import { getVolume } from './volume';
@@ -107,6 +107,10 @@ function ensureMeshes() {
   if (meshesBuiltUrl === focusedUrl) return;    // already built
   buildLayout(player.video.phrases);
   meshesBuiltUrl = focusedUrl;
+  if (inPlayback) {
+    camera.position.set(0, 0, effectiveSongCameraZ(focusedUrl));
+    controls.update();
+  }
 }
 
 function reconcile() {
@@ -150,6 +154,28 @@ function hideLoading(gen: number) {
   setPreviewLoading(false);
 }
 
+function computeSongCameraZ(): number {
+  const { halfH, halfW } = getLayoutHalfExtents();
+  const fovHalf = (camera.fov / 2) * (Math.PI / 180);
+  const aspect  = canvas.clientWidth / canvas.clientHeight;
+  const fill    = 0.70; // 15% whitespace top+bottom
+  const zForH   = halfH / (Math.tan(fovHalf) * fill);
+  const zForW   = halfW / (Math.tan(fovHalf) * aspect * fill);
+  return Math.max(Math.max(zForH, zForW), 12); // min Z=12 keeps camera between spheres
+}
+
+// Songs that need the camera outside the outer sphere to show reflections/refractions.
+// Outer sphere radius = SPHERE_RADIUS * 3 = 21; +4 puts the camera clearly outside.
+const OUTSIDE_SPHERE_SONGS = new Set([
+  'https://piapro.jp/t/6W2N/20251215164617', // Answer Me
+  'https://piapro.jp/t/PNpQ/20251209170719', // Shutter Chance
+]);
+
+function effectiveSongCameraZ(url: string): number {
+  const z = computeSongCameraZ();
+  return OUTSIDE_SPHERE_SONGS.has(url) ? Math.max(z, 25) : z;
+}
+
 const backBtn = document.createElement('button');
 backBtn.id = 'back';
 backBtn.textContent = '← Back';
@@ -184,13 +210,14 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       ++backGen;
       canvas.style.transition = '';
       canvas.style.opacity    = '1';
+      setHideOuterSphere(false);
       setMenuMode(false);
       setSongMode(true);
       cylinderMesh.visible = false;
       particlePoints.visible = true;
-      controls.minDistance = 28;
+      controls.minDistance = 8;
       controls.maxDistance = 90;
-      camera.position.set(0, 0, 55);
+      camera.position.set(0, 0, effectiveSongCameraZ(song.url));
       controls.target.set(0, 0, 0);
       controls.update();
       flushCubemapNow();
@@ -208,6 +235,7 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       ++backGen;
       canvas.style.transition = '';
       canvas.style.opacity    = '1';
+      setHideOuterSphere(false);
       setMenuMode(false);
       setSettingsMode(true);
       cylinderMesh.visible = false;
@@ -223,8 +251,18 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       ++backGen;
       canvas.style.transition = '';
       canvas.style.opacity    = '1';
+      setHideOuterSphere(false);
       setMenuMode(false);
       cylinderMesh.visible = false;
+      {
+        const fovHalf = (camera.fov / 2) * (Math.PI / 180);
+        const aspect  = canvas.clientWidth / canvas.clientHeight;
+        const zH = 10.4 / (Math.tan(fovHalf) * 0.70);  // halfH for 8 lines at size 1.4/LINE_HEIGHT 2.6
+        const zW = 10.0 / (Math.tan(fovHalf) * aspect * 0.70); // estimated halfW for longest line
+        camera.position.set(0, 0, Math.min(Math.max(zH, zW, 12), 90));
+        controls.target.set(0, 0, 0);
+        controls.update();
+      }
       flushCubemapNow();
       backBtn.style.display   = 'block';
       clearAllParticles(); clearLyricMeshes();
@@ -307,7 +345,7 @@ function triggerBack() {
       setSongMode(false);
       camera.position.set(0, 0, 58);
       controls.target.set(0, 0, 0);
-      controls.minDistance = 28;
+      controls.minDistance = 22;
       controls.maxDistance = 90;
       controls.update();
     }

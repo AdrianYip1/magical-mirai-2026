@@ -47,7 +47,7 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 controls.enableZoom = false;
 controls.target.set(0, 0, 0);
-controls.minDistance = 28;   // just outside the outer glass sphere (r=27)
+controls.minDistance = 22;   // just outside the outer glass sphere (r=21)
 controls.maxDistance = 68;
 controls.rotateSpeed = -1;
 // Prevent camera from orbiting behind the text (z=0 plane).
@@ -200,6 +200,7 @@ let songMode = false;
 export function setSongMode(active: boolean) {
   songMode = active;
   controls.enableRotate = !active;
+  controls.enablePan    = !active;
 }
 
 let hideOuterSphere = false;

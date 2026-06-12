@@ -48,6 +48,7 @@ function makeGlassMat(): THREE.ShaderMaterial {
       uEnvMap:        glassInnerUniforms.uEnvMap,
       uBeatIntensity: glassInnerUniforms.uBeatIntensity,
       uOpacity:       { value: 1.0 },
+      uFill:          { value: 1.0 },
     },
     transparent: true,
     depthWrite:  false,
@@ -95,8 +96,8 @@ export function enterLanguage(
 
   const fovHalf = (camera.fov / 2) * (Math.PI / 180);
   const aspect  = canvasEl.clientWidth / canvasEl.clientHeight;
-  const zForH   = LAYOUT_HALF_H / Math.tan(fovHalf) * 1.25;
-  const zForW   = LAYOUT_HALF_W / (Math.tan(fovHalf) * aspect) * 1.25;
+  const zForH   = LAYOUT_HALF_H / Math.tan(fovHalf) * 1.43;
+  const zForW   = LAYOUT_HALF_W / (Math.tan(fovHalf) * aspect) * 1.43;
   camera.position.set(0, 0, Math.max(zForH, zForW, 3));
   camera.quaternion.identity();
   orbitControls.target.set(0, 0, 0);
