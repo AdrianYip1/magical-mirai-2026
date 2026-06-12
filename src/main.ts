@@ -1,13 +1,13 @@
 import './style.css';
 import * as THREE from 'three';
 import { Player, IPlayerApp, IWord, IPhrase, IBeat, IChar } from 'textalive-app-api';
-import { canvas, animate, glassInnerUniforms, glassOuterUniforms, renderer, scene, cubeCamera, cubeLargeCamera, triggerBeat, camera, controls } from './renderer';
+import { canvas, animate, glassInnerUniforms, glassOuterUniforms, renderer, scene, cubeCamera, cubeLargeCamera, triggerBeat, camera, controls, cylinderMesh, flushCubemapNow, setCylinderSegments, setMenuMode, setSettingsMode, setSongMode, menuState } from './renderer';
 import { mountSphereSongSelect, getLastMenuParticles } from './sphereSelect';
 import type { WheelItem, DiParticle } from './sphereSelect';
 import type { SongOption } from './songSelect';
 import songs from './songs';
 import { initLyrics, setWord, setChar, clearCurrentWord, clearPhrase, buildLayout, displayStaticText, clearStaticText, clearLyricMeshes } from './lyrics';
-import { clearAllParticles, activateWordParticles, setFadeRate, COUNT } from './particles';
+import { clearAllParticles, activateWordParticles, setFadeRate, COUNT, points as particlePoints } from './particles';
 import * as previewAudio from './previewAudio';
 import { getVolume } from './volume';
 import { enterSettings, leaveSettings } from './settingsScene';
@@ -157,6 +157,12 @@ backBtn.style.display = 'none';
 document.body.appendChild(backBtn);
 
 let selectedSongIndex = songs.length; // tracks which song is active so we return to it
+setCylinderSegments(wheelItems.length);
+setMenuMode(true);
+// Pre-set the cylinder angle so face 0 isn't visible for one frame before carousel tick fires.
+menuState.cylAngle = -selectedSongIndex * (2 * Math.PI / wheelItems.length);
+cylinderMesh.visible = true;
+particlePoints.visible = false;
 let wheel = remountMenu(songs.length);
 
 function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typeof mountSphereSongSelect> {
@@ -168,9 +174,9 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       // Don't stop the player — it's already playing the preview, so seeking to 0
       // keeps audio going within the user's click (no autoplay re-block). The
       // awaitingSeek gate below suppresses the chorus lyrics until the seek lands.
-      clearAllParticles(); clearLyricMeshes(); // wipe anything from the preview era
-      currentWord = currentChar = currentPhrase = null;  // re-fire lyrics from position 0
-      awaitingSeek = true; // ignore lyrics until the seek-to-0 actually lands
+      clearAllParticles(); clearLyricMeshes();
+      currentWord = currentChar = currentPhrase = null;
+      awaitingSeek = true;
       inPlayback = true;
       selectedSongIndex = songs.findIndex(s => s.url === song.url);
       if (selectedSongIndex < 0) selectedSongIndex = songs.length;
@@ -178,13 +184,22 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       ++backGen;
       canvas.style.transition = '';
       canvas.style.opacity    = '1';
-      canvas.style.display    = 'block';
+      setMenuMode(false);
+      setSongMode(true);
+      cylinderMesh.visible = false;
+      particlePoints.visible = true;
+      controls.minDistance = 28;
+      controls.maxDistance = 90;
+      camera.position.set(0, 0, 55);
+      controls.target.set(0, 0, 0);
+      controls.update();
+      flushCubemapNow();
       backBtn.style.display = 'block';
       requestLoad(song, () => {
         ensureMeshes();
         player.requestMediaSeek(0);
         player.volume = getVolume() * 100;
-        player.requestPlay(); // no-op if already playing; resumes from 0
+        player.requestPlay();
       });
     },
     () => {
@@ -193,7 +208,11 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       ++backGen;
       canvas.style.transition = '';
       canvas.style.opacity    = '1';
-      canvas.style.display    = 'block';
+      setMenuMode(false);
+      setSettingsMode(true);
+      cylinderMesh.visible = false;
+      particlePoints.visible = true;
+      flushCubemapNow();
       backBtn.style.display   = 'block';
       clearAllParticles(); clearLyricMeshes();
       enterSettings(camera, canvas, controls);
@@ -204,7 +223,9 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       ++backGen;
       canvas.style.transition = '';
       canvas.style.opacity    = '1';
-      canvas.style.display    = 'block';
+      setMenuMode(false);
+      cylinderMesh.visible = false;
+      flushCubemapNow();
       backBtn.style.display   = 'block';
       clearAllParticles(); clearLyricMeshes();
       setFadeRate(0);
@@ -277,10 +298,22 @@ function triggerBack() {
   currentWord = currentChar = currentPhrase = null;
   desired = null; // cancel any queued load callback so the song doesn't start after going back
 
-  if (wasUtility === 'settings') leaveSettings(camera, controls);
-  else { clearStaticText(); setFadeRate(0.25); }
+  if (wasUtility === 'settings') { setSettingsMode(false); leaveSettings(camera, controls); }
+  else {
+    clearStaticText(); setFadeRate(0.25);
+    if (wasInPlayback) {
+      setSongMode(false);
+      camera.position.set(0, 0, 58);
+      controls.target.set(0, 0, 0);
+      controls.minDistance = 28;
+      controls.maxDistance = 90;
+      controls.update();
+    }
+  }
+  particlePoints.visible = false;
 
-  wheel.abortDisintegration();
+  const prevWheel = wheel;
+  prevWheel.abortDisintegration();
 
   const menuPtcls = getLastMenuParticles();
   clearAllParticles(); clearLyricMeshes();
@@ -290,6 +323,7 @@ function triggerBack() {
   }
 
   wheel = remountMenu(selectedSongIndex, true);
+  prevWheel.cleanup();
   const myWheel = wheel;
   const myGen   = ++backGen;
 
@@ -304,9 +338,11 @@ function triggerBack() {
     clearAllParticles();
     setTimeout(() => {
       if (backGen !== myGen) return;
-      canvas.style.display = 'none';
+      menuState.cylAngle = -selectedSongIndex * (2 * Math.PI / wheelItems.length);
+      setMenuMode(true);
+      cylinderMesh.visible = true;
+      canvas.style.transition = 'opacity 0.5s';
       canvas.style.opacity = '1';
-      canvas.style.transition = '';
     }, 520);
   }, 700);
 }

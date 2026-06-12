@@ -1,6 +1,7 @@
 import './sphereSelect.css';
 import type { SongOption } from './songSelect';
 import { getLanguage } from './language';
+import { menuState } from './renderer';
 
 export type WheelItem =
   | { kind: 'song';     data: SongOption }
@@ -554,6 +555,7 @@ export function mountSphereSongSelect(
   function tick() {
     spinAngle += (targetAngle - spinAngle) * 0.1;
     inner.style.transform = `rotateY(${spinAngle}deg)`;
+    menuState.cylAngle = spinAngle * (Math.PI / 180);
     raf = requestAnimationFrame(tick);
   }
   raf = requestAnimationFrame(tick);

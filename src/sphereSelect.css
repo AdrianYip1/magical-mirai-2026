@@ -5,7 +5,7 @@
   align-items: center;
   justify-content: center;
   z-index: 50;
-  background: radial-gradient(ellipse at 50% 55%, #05101f 0%, #000 80%);
+  background: transparent;
   perspective: 900px;
   overflow: hidden;
   font-family: 'Noto Sans JP', monospace, sans-serif;

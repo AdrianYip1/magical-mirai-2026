@@ -4,7 +4,9 @@ import { SPHERE_RADIUS, MIN_VERTS, drawSphere } from './sphere';
 import { update as updateParticles, points as particlePoints } from './particles';
 import { auroraMesh, tickAurora } from './aurora';
 import { CUBE_INTERVAL, OUTER_SPHERE } from './perf';
-import { getDetailMode, type DetailMode } from './settings';
+import { getDetailMode, getSphereSpin, type DetailMode } from './settings';
+import lyricGlassVert from './shaders/lyric-glass.vert?raw';
+import lyricGlassFrag from './shaders/lyric-glass.frag?raw';
 
 export const canvasWrapper = document.createElement('div');
 canvasWrapper.className = 'canvas-wrapper';
@@ -16,7 +18,7 @@ document.body.appendChild(canvasWrapper);
 
 export const canvas = document.createElement('canvas');
 canvasWrapper.appendChild(canvas);
-canvas.style.display = 'none';
+canvas.style.display = 'block';
 canvas.style.width = '100%';
 canvas.style.height = '100%';
 
@@ -35,8 +37,8 @@ const renderTargetHalf = new THREE.WebGLRenderTarget(
 
 export const scene = new THREE.Scene();
 
-export const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(0, 0, 34);
+export const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 0, 58);
 camera.layers.enable(1);
 camera.layers.enable(2);
 
@@ -45,8 +47,8 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 controls.enableZoom = false;
 controls.target.set(0, 0, 0);
-controls.minDistance = 19;   // just outside the outer glass sphere (r=18)
-controls.maxDistance = 44;
+controls.minDistance = 28;   // just outside the outer glass sphere (r=27)
+controls.maxDistance = 68;
 controls.rotateSpeed = -1;
 // Prevent camera from orbiting behind the text (z=0 plane).
 // ±0.5π keeps the camera in the front hemisphere with a little side-view wiggle.
@@ -119,6 +121,81 @@ scene.add(auroraMesh);
 
 scene.add(particlePoints);
 
+// Glass cylinder — visible only in main menu, tracks carousel spin angle via menuState.cylAngle.
+// Segment count = number of carousel panels so each flat face aligns with one card.
+export const menuState = { cylAngle: 0 };
+
+let cylSegments = 8;
+
+function buildCylGeo(n: number, r: number, h: number): THREE.BufferGeometry {
+  const raw = new THREE.CylinderGeometry(r, r, h, n, 1, true);
+  const geo = raw.toNonIndexed();
+  raw.dispose();
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function computeCylRadius(n: number): number {
+  const W = window.innerWidth, H = window.innerHeight;
+  const tanHFovX = Math.tan(Math.PI / 6) * (W / H); // tan(half horizontal FOV)
+  const cssHalfW = (170 / 2) * (900 / (900 - 280));  // CSS apparent panel half-width
+  const sinPN = Math.sin(Math.PI / n), cosPN = Math.cos(Math.PI / n);
+  const s2 = 2 * tanHFovX;
+  const r = (cssHalfW * s2 * 58) / (sinPN * W + cssHalfW * s2 * cosPN);
+  return Math.max(4, Math.min(r, 20));
+}
+
+function computeCylHeight(n: number, r: number): number {
+  const d = 58 - r * Math.cos(Math.PI / n); // camera-to-face distance
+  const cssFullH = 190 * (900 / (900 - 280));
+  return cssFullH * Math.tan(Math.PI / 6) * d / (window.innerHeight / 2);
+}
+
+const _initR = computeCylRadius(cylSegments);
+const _initH = computeCylHeight(cylSegments, _initR);
+
+export const cylinderMesh = new THREE.Mesh(
+  buildCylGeo(cylSegments, _initR, _initH),
+  new THREE.ShaderMaterial({
+    vertexShader:   lyricGlassVert,
+    fragmentShader: lyricGlassFrag,
+    uniforms: {
+      uCameraPos:     glassInnerUniforms.uCameraPos,
+      uEnvMap:        glassInnerUniforms.uEnvMap,
+      uBeatIntensity: glassInnerUniforms.uBeatIntensity,
+      uOpacity:       { value: 0.7 },
+    },
+    transparent: true,
+    depthWrite:  false,
+    side:        THREE.DoubleSide,
+  }),
+);
+cylinderMesh.renderOrder = 0;
+cylinderMesh.visible = false;
+scene.add(cylinderMesh);
+
+/** Rebuild the cylinder with n sides, sized to match the CSS carousel cards on screen. */
+export function setCylinderSegments(n: number) {
+  const old = cylinderMesh.geometry;
+  const r = computeCylRadius(n);
+  const h = computeCylHeight(n, r);
+  cylinderMesh.geometry = buildCylGeo(n, r, h);
+  old.dispose();
+  cylSegments = n;
+}
+
+let menuMode = false;
+/** True while the main carousel menu is shown — hides the glass sphere so only the cylinder shows. */
+export function setMenuMode(active: boolean) { menuMode = active; }
+
+let settingsMode = false;
+/** True while the settings panel is open — the sphere drifts slowly; particles are unaffected. */
+export function setSettingsMode(active: boolean) { settingsMode = active; }
+
+let songMode = false;
+/** True while a song is playing — the sphere rotates if sphere spin is enabled. */
+export function setSongMode(active: boolean) { songMode = active; }
+
 const fadeScene  = new THREE.Scene();
 fadeScene.add(new THREE.Mesh(
   new THREE.PlaneGeometry(2, 2),
@@ -143,7 +220,7 @@ export function flushCubemapNow() {
   largerSphereMesh.visible = false;
   auroraMesh.visible      = false;
   activeCubeCamera.update(renderer, scene);
-  if (outerSphereActive) largerSphereMesh.visible = true;
+  if (outerSphereActive && !menuMode) largerSphereMesh.visible = true;
   auroraMesh.visible = true;
 }
 
@@ -169,7 +246,7 @@ export function applyDetailMode(mode: DetailMode) {
     glassInnerUniforms.uDetailLevel.value = 1.0;
     glassOuterUniforms.uDetailLevel.value = 1.0;
     outerSphereActive = OUTER_SPHERE;
-    largerSphereMesh.visible = OUTER_SPHERE;
+    largerSphereMesh.visible = OUTER_SPHERE && !menuMode;
   }
 }
 
@@ -187,6 +264,18 @@ export function animate() {
 
   controls.rotateSpeed = camera.position.length() < SPHERE_RADIUS ? -1 : 1;
   controls.update();
+
+  if (cylinderMesh.visible) {
+    // Face 0 of the cylinder has its outward normal at π/n — offset by −π/n so it
+    // points at angle 0 (toward the camera) when spinAngle=0 (panel 0 at front).
+    cylinderMesh.rotation.y     = -Math.PI / cylSegments + menuState.cylAngle;
+    sphereMesh.rotation.y       = menuState.cylAngle;
+    largerSphereMesh.rotation.y = menuState.cylAngle;
+  }
+
+  if ((settingsMode || songMode) && getSphereSpin() === 'on') {
+    largerSphereMesh.rotation.y += delta * 0.1;
+  }
 
   glassInnerUniforms.uCameraPos.value = camera.position;
   glassOuterUniforms.uCameraPos.value = camera.position;
@@ -215,20 +304,17 @@ export function animate() {
 
   if (outerSphereActive) {
     if (detailHigh) {
-      // High detail: outer sphere gets its own 256px cubemap + full-res scene texture.
       if (updateCube) cubeLargeCamera.update(renderer, scene);
       renderer.setRenderTarget(renderLargerTarget);
       renderer.clear();
       renderer.render(scene, camera);
       glassOuterUniforms.uSceneTexture.value = renderLargerTarget.texture;
     } else {
-      // Low detail: reuse the inner sphere's half-res scene texture (saves one render pass).
       glassOuterUniforms.uSceneTexture.value = activeRenderTarget.texture;
     }
   }
 
-  // Restore for the final screen render.
-  if (outerSphereActive) largerSphereMesh.visible = true;
+  if (outerSphereActive && !menuMode) largerSphereMesh.visible = true;
   auroraMesh.visible = true;
 
   renderer.setRenderTarget(null);

@@ -25,3 +25,18 @@ export function setDetailMode(v: DetailMode): void {
   _detail = v;
   try { localStorage.setItem(DETAIL_KEY, v); } catch { /* private mode */ }
 }
+
+const SPIN_KEY = 'holofragment.sphere_spin';
+export type SphereSpin = 'on' | 'off';
+
+let _spin: SphereSpin = (() => {
+  const saved = localStorage.getItem(SPIN_KEY);
+  return saved === 'off' ? 'off' : 'on';
+})();
+
+export const getSphereSpin = (): SphereSpin => _spin;
+
+export function setSphereSpin(v: SphereSpin): void {
+  _spin = v;
+  try { localStorage.setItem(SPIN_KEY, v); } catch { /* private mode */ }
+}

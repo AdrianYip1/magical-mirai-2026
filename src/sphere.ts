@@ -3,7 +3,7 @@ import { ConvexGeometry } from 'three/examples/jsm/Addons.js';
 import cubeVert from './shaders/cube.vert.glsl?raw';
 import glassFrag from './shaders/glass.frag?raw';
 
-export const SPHERE_RADIUS = 6;
+export const SPHERE_RADIUS = 9;
 export const MIN_VERTS = 50;
 export const MAX_VERTS = 120;
 export const VERT_STEP = 5;

@@ -28,7 +28,6 @@ void main() {
     vec4 cardColor = texture2D(uColorTex, vTexUv);
     vec3 finalColor;
     if (cardColor.a > 0.5) {
-        // Explicit card color: brighten it and add a touch of reflection
         finalColor = mix(cardColor.rgb * 1.2, reflectColour, fres * 0.4);
     } else {
         vec3 holoColor = 0.5 + 0.5 * cos(6.28318 * (vHue + vec3(0.0, 0.333, 0.667)));

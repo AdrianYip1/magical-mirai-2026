@@ -82,12 +82,10 @@ vec3 respawn(vec2 seed) {
 }
 
 void main() {
-    // Every pixel reads its particle state
     vec4 state = texture2D(uState, vUv);
     vec3 pos   = state.xyz;
     float age  = state.w;
 
-    // Respawn dead particles at a random position (through hashing)
     if (age >= 1.0) {
         pos = respawn(vUv);
         age = fract(sin(vUv.x * 591.3 + vUv.y * 291.7) * 43758.5453);
@@ -97,7 +95,6 @@ void main() {
 
     vec3 target   = texture2D(uTargetTex, vUv).xyz;
     vec3 toTarget = target - pos;
-    // use length(toTarget) to compute a radius for particles
 
     vec3 flow     = curl(pos * 0.05 + uTime * 0.06);
     float speed   = 1.2 + uBeat * 3.0;

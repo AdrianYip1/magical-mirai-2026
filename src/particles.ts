@@ -97,7 +97,6 @@ export function clearParticles(indices: Uint32Array) {
   assignmentTex.needsUpdate = true;
 }
 
-/** Deactivate every particle -> returns them all to the ambient curl flow. */
 export function clearAllParticles() {
   assignmentData.fill(0);
   assignmentTex.needsUpdate = true;

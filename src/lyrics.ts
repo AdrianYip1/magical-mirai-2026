@@ -199,9 +199,7 @@ export function setWord(word: IWord) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function setChar(_char: IChar) {
-  // reserved for future per-syllable effects
-}
+export function setChar(_char: IChar) {}
 
 export function clearPhrase(phrase: IPhrase) {
   const pd = phraseData.get(phrase);

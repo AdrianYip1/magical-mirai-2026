@@ -5,51 +5,60 @@ import { activateWordParticles, clearParticles, setFadeRate, COUNT } from './par
 import { sampleSurface, getFont } from './lyrics';
 import { setVolume, getVolume } from './volume';
 import { getLanguage, setLanguage } from './language';
-import { getDetailMode, setDetailMode } from './settings';
+import { getDetailMode, setDetailMode, getSphereSpin, setSphereSpin } from './settings';
 import { scene, glassInnerUniforms, applyDetailMode, flushCubemapNow } from './renderer';
 import lyricGlassVert from './shaders/lyric-glass.vert?raw';
 import lyricGlassFrag from './shaders/lyric-glass.frag?raw';
 
-const BAR_HALF_W = 1.1;
+const BAR_HALF_W = 1.32;
 const BAR_LEFT   = -BAR_HALF_W;
 const BAR_RIGHT  =  BAR_HALF_W;
-const BAR_BOTTOM = -0.38;
-const BAR_TOP    = -0.12;
+const BAR_BOTTOM = -0.46;
+const BAR_TOP    = -0.14;
 const BAR_WIDTH  = BAR_RIGHT  - BAR_LEFT;
 const BAR_HEIGHT = BAR_TOP    - BAR_BOTTOM;
-const LABEL_Y    =  0.35;
-const LABEL_SIZE =  0.4;
+const LABEL_Y    =  0.42;
+const LABEL_SIZE =  0.6;
 
-const LANG_SECTION_Y    = -0.85;
-const LANG_SECTION_SIZE =  0.4;
-const LANG_CHIP_Y       = -1.42;
-const LANG_CHIP_SIZE    =  0.35;
+const LANG_SECTION_Y    = -1.02;
+const LANG_SECTION_SIZE =  0.6;
+const LANG_CHIP_Y       = -1.70;
+const LANG_CHIP_SIZE    =  0.52;
 
-const DETAIL_SECTION_Y    = -2.00;
-const DETAIL_SECTION_SIZE =  0.4;
-const DETAIL_CHIP_Y       = -2.55;
-const DETAIL_CHIP_SIZE    =  0.35;
+const DETAIL_SECTION_Y    = -2.40;
+const DETAIL_SECTION_SIZE =  0.6;
+const DETAIL_CHIP_Y       = -3.06;
+const DETAIL_CHIP_SIZE    =  0.52;
 
-const CONTENT_TOP    = LABEL_Y          + LABEL_SIZE          * 0.6;
-const CONTENT_BOTTOM = DETAIL_CHIP_Y    - DETAIL_CHIP_SIZE    * 0.6;
+const SPIN_SECTION_Y    = -3.76;
+const SPIN_SECTION_SIZE =  0.6;
+const SPIN_CHIP_Y       = -4.42;
+const SPIN_CHIP_SIZE    =  0.52;
+
+const CONTENT_TOP    = LABEL_Y       + LABEL_SIZE       * 0.6;
+const CONTENT_BOTTOM = SPIN_CHIP_Y   - SPIN_CHIP_SIZE   * 0.6;
 const CONTENT_MID_Y  = (CONTENT_TOP + CONTENT_BOTTOM) / 2;
 const CONTENT_HALF_H = (CONTENT_TOP - CONTENT_BOTTOM) / 2;
-const LAYOUT_HALF_W  = 1.6;
+const LAYOUT_HALF_W  = 2.0;
 
 const SCALE         = COUNT / 65536;
-const LABEL_COUNT   = Math.round(20_000 * SCALE);
+const LABEL_COUNT   = Math.round(14_000 * SCALE);
 const OUTLINE_COUNT = Math.round( 3_000 * SCALE);
-const FILL_COUNT    = Math.round(12_000 * SCALE);
-const LANG_HEAD_COUNT = Math.round(10_000 * SCALE);
-const LANG_CHIP_COUNT = Math.round( 8_000 * SCALE);
+const FILL_COUNT    = Math.round( 9_000 * SCALE);
+const LANG_HEAD_COUNT = Math.round( 8_000 * SCALE);
+const LANG_CHIP_COUNT = Math.round( 6_000 * SCALE);
 
-const DETAIL_HEAD_COUNT = Math.round( 7_000 * SCALE);
-const DETAIL_CHIP_COUNT = Math.round( 5_000 * SCALE);
+const DETAIL_HEAD_COUNT = Math.round( 5_500 * SCALE);
+const DETAIL_CHIP_COUNT = Math.round( 4_000 * SCALE);
+const SPIN_HEAD_COUNT   = Math.round( 5_500 * SCALE);
+const SPIN_CHIP_COUNT   = Math.round( 4_000 * SCALE);
 
 const LANG_HEAD_BASE   = LABEL_COUNT + OUTLINE_COUNT + FILL_COUNT;
 const LANG_CHIP_BASE   = LANG_HEAD_BASE + LANG_HEAD_COUNT;
 const DETAIL_HEAD_BASE = LANG_CHIP_BASE + LANG_CHIP_COUNT;
 const DETAIL_CHIP_BASE = DETAIL_HEAD_BASE + DETAIL_HEAD_COUNT;
+const SPIN_HEAD_BASE   = DETAIL_CHIP_BASE + DETAIL_CHIP_COUNT;
+const SPIN_CHIP_BASE   = SPIN_HEAD_BASE   + SPIN_HEAD_COUNT;
 
 const labelIndices      = new Uint32Array(LABEL_COUNT);
 const outlineIndices    = new Uint32Array(OUTLINE_COUNT);
@@ -58,6 +67,8 @@ const langHeadIndices   = new Uint32Array(LANG_HEAD_COUNT);
 const langChipIndices   = new Uint32Array(LANG_CHIP_COUNT);
 const detailHeadIndices = new Uint32Array(DETAIL_HEAD_COUNT);
 const detailChipIndices = new Uint32Array(DETAIL_CHIP_COUNT);
+const spinHeadIndices   = new Uint32Array(SPIN_HEAD_COUNT);
+const spinChipIndices   = new Uint32Array(SPIN_CHIP_COUNT);
 for (let i = 0; i < LABEL_COUNT;       i++) labelIndices[i]      = i;
 for (let i = 0; i < OUTLINE_COUNT;     i++) outlineIndices[i]    = LABEL_COUNT + i;
 for (let i = 0; i < FILL_COUNT;        i++) fillIndices[i]       = LABEL_COUNT + OUTLINE_COUNT + i;
@@ -65,6 +76,8 @@ for (let i = 0; i < LANG_HEAD_COUNT;   i++) langHeadIndices[i]   = LANG_HEAD_BAS
 for (let i = 0; i < LANG_CHIP_COUNT;   i++) langChipIndices[i]   = LANG_CHIP_BASE + i;
 for (let i = 0; i < DETAIL_HEAD_COUNT; i++) detailHeadIndices[i] = DETAIL_HEAD_BASE + i;
 for (let i = 0; i < DETAIL_CHIP_COUNT; i++) detailChipIndices[i] = DETAIL_CHIP_BASE + i;
+for (let i = 0; i < SPIN_HEAD_COUNT;   i++) spinHeadIndices[i]   = SPIN_HEAD_BASE + i;
+for (let i = 0; i < SPIN_CHIP_COUNT;   i++) spinChipIndices[i]   = SPIN_CHIP_BASE + i;
 
 function makeGlassMat(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
@@ -99,6 +112,12 @@ let detailSectionMesh: THREE.Mesh | null = null;
 let detailChipGeo:     THREE.BufferGeometry | null = null;
 let detailChipMesh:    THREE.Mesh | null = null;
 let detailChipOverlay: HTMLDivElement | null = null;
+
+let spinSectionGeo:  THREE.BufferGeometry | null = null;
+let spinSectionMesh: THREE.Mesh | null = null;
+let spinChipGeo:     THREE.BufferGeometry | null = null;
+let spinChipMesh:    THREE.Mesh | null = null;
+let spinChipOverlay: HTMLDivElement | null = null;
 
 let savedCamPos:  THREE.Vector3    | null = null;
 let savedCamQuat: THREE.Quaternion | null = null;
@@ -231,7 +250,7 @@ function rebuildLabelMesh(font: NonNullable<ReturnType<typeof getFont>>) {
 
   const text = getLanguage() === 'ja' ? '音量' : 'VOLUME';
   labelGeo = new TextGeometry(text, {
-    font, size: LABEL_SIZE, depth: 0.18, curveSegments: 4,
+    font, size: LABEL_SIZE, depth: 0.27, curveSegments: 4,
   });
   labelGeo.computeBoundingBox();
   const bb = labelGeo.boundingBox!;
@@ -250,7 +269,7 @@ function rebuildLangSectionMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   if (langSectionGeo)  { langSectionGeo.dispose(); langSectionGeo = null; }
 
   const text = getLanguage() === 'ja' ? '言語' : 'LANGUAGES';
-  langSectionGeo = new TextGeometry(text, { font, size: LANG_SECTION_SIZE, depth: 0.08, curveSegments: 4 });
+  langSectionGeo = new TextGeometry(text, { font, size: LANG_SECTION_SIZE, depth: 0.12, curveSegments: 4 });
   langSectionGeo.computeBoundingBox();
   const bb = langSectionGeo.boundingBox!;
   langSectionGeo.translate(
@@ -268,7 +287,7 @@ function rebuildChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   if (langChipGeo)  { langChipGeo.dispose(); langChipGeo = null; }
 
   const text = getLanguage() === 'ja' ? '日本語' : '英語';
-  langChipGeo = new TextGeometry(text, { font, size: LANG_CHIP_SIZE, depth: 0.10, curveSegments: 4 });
+  langChipGeo = new TextGeometry(text, { font, size: LANG_CHIP_SIZE, depth: 0.15, curveSegments: 4 });
   langChipGeo.computeBoundingBox();
   const bb = langChipGeo.boundingBox!;
   langChipGeo.translate(
@@ -286,7 +305,7 @@ function rebuildDetailSectionMesh(font: NonNullable<ReturnType<typeof getFont>>)
   if (detailSectionGeo)  { detailSectionGeo.dispose(); detailSectionGeo = null; }
 
   const text = getLanguage() === 'ja' ? '品質' : 'DETAIL';
-  detailSectionGeo = new TextGeometry(text, { font, size: DETAIL_SECTION_SIZE, depth: 0.08, curveSegments: 4 });
+  detailSectionGeo = new TextGeometry(text, { font, size: DETAIL_SECTION_SIZE, depth: 0.12, curveSegments: 4 });
   detailSectionGeo.computeBoundingBox();
   const bb = detailSectionGeo.boundingBox!;
   detailSectionGeo.translate(
@@ -303,8 +322,10 @@ function rebuildDetailChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   if (detailChipMesh) { scene.remove(detailChipMesh); (detailChipMesh.material as THREE.ShaderMaterial).dispose(); detailChipMesh = null; }
   if (detailChipGeo)  { detailChipGeo.dispose(); detailChipGeo = null; }
 
-  const text = getDetailMode() === 'high' ? 'HIGH' : 'LOW';
-  detailChipGeo = new TextGeometry(text, { font, size: DETAIL_CHIP_SIZE, depth: 0.10, curveSegments: 4 });
+  const text = getLanguage() === 'ja'
+    ? (getDetailMode() === 'high' ? '高' : '低')
+    : (getDetailMode() === 'high' ? 'HIGH' : 'LOW');
+  detailChipGeo = new TextGeometry(text, { font, size: DETAIL_CHIP_SIZE, depth: 0.15, curveSegments: 4 });
   detailChipGeo.computeBoundingBox();
   const bb = detailChipGeo.boundingBox!;
   detailChipGeo.translate(
@@ -315,6 +336,44 @@ function rebuildDetailChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   activateWordParticles(detailChipIndices, sampleSurface(detailChipGeo, DETAIL_CHIP_COUNT));
   detailChipMesh = new THREE.Mesh(detailChipGeo, makeGlassMat());
   scene.add(detailChipMesh);
+}
+
+function rebuildSpinSectionMesh(font: NonNullable<ReturnType<typeof getFont>>) {
+  if (spinSectionMesh) { scene.remove(spinSectionMesh); (spinSectionMesh.material as THREE.ShaderMaterial).dispose(); spinSectionMesh = null; }
+  if (spinSectionGeo)  { spinSectionGeo.dispose(); spinSectionGeo = null; }
+
+  const text = getLanguage() === 'ja' ? '回転' : 'ROTATION';
+  spinSectionGeo = new TextGeometry(text, { font, size: SPIN_SECTION_SIZE, depth: 0.12, curveSegments: 4 });
+  spinSectionGeo.computeBoundingBox();
+  const bb = spinSectionGeo.boundingBox!;
+  spinSectionGeo.translate(
+    -(bb.min.x + bb.max.x) / 2,
+    -(bb.min.y + bb.max.y) / 2 + SPIN_SECTION_Y,
+    0,
+  );
+  activateWordParticles(spinHeadIndices, sampleSurface(spinSectionGeo, SPIN_HEAD_COUNT));
+  spinSectionMesh = new THREE.Mesh(spinSectionGeo, makeGlassMat());
+  scene.add(spinSectionMesh);
+}
+
+function rebuildSpinChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
+  if (spinChipMesh) { scene.remove(spinChipMesh); (spinChipMesh.material as THREE.ShaderMaterial).dispose(); spinChipMesh = null; }
+  if (spinChipGeo)  { spinChipGeo.dispose(); spinChipGeo = null; }
+
+  const text = getLanguage() === 'ja'
+    ? (getSphereSpin() === 'on' ? 'オン' : 'オフ')
+    : (getSphereSpin() === 'on' ? 'ON' : 'OFF');
+  spinChipGeo = new TextGeometry(text, { font, size: SPIN_CHIP_SIZE, depth: 0.15, curveSegments: 4 });
+  spinChipGeo.computeBoundingBox();
+  const bb = spinChipGeo.boundingBox!;
+  spinChipGeo.translate(
+    -(bb.min.x + bb.max.x) / 2,
+    -(bb.min.y + bb.max.y) / 2 + SPIN_CHIP_Y,
+    -(bb.min.z + bb.max.z) / 2,
+  );
+  activateWordParticles(spinChipIndices, sampleSurface(spinChipGeo, SPIN_CHIP_COUNT));
+  spinChipMesh = new THREE.Mesh(spinChipGeo, makeGlassMat());
+  scene.add(spinChipMesh);
 }
 
 function setupDetailChipOverlay(
@@ -340,6 +399,29 @@ function setupDetailChipOverlay(
   detailChipOverlay.addEventListener('pointerdown', onToggle);
 }
 
+function setupSpinChipOverlay(
+  camera: THREE.Camera,
+  canvasEl: HTMLCanvasElement,
+  onToggle: () => void,
+) {
+  const W = 140, H = 80;
+  const pos = worldToScreen(0, SPIN_CHIP_Y, camera, canvasEl);
+
+  spinChipOverlay = document.createElement('div');
+  Object.assign(spinChipOverlay.style, {
+    position:    'fixed',
+    cursor:      'pointer',
+    zIndex:      '20',
+    touchAction: 'none',
+    left:        `${pos.x - W / 2}px`,
+    top:         `${pos.y - H / 2}px`,
+    width:       `${W}px`,
+    height:      `${H}px`,
+  });
+  document.body.appendChild(spinChipOverlay);
+  spinChipOverlay.addEventListener('pointerdown', onToggle);
+}
+
 export function enterSettings(
   camera: THREE.PerspectiveCamera,
   canvasEl: HTMLCanvasElement,
@@ -358,9 +440,9 @@ export function enterSettings(
 
   const fovHalf = (camera.fov / 2) * (Math.PI / 180);
   const aspect  = canvasEl.clientWidth / canvasEl.clientHeight;
-  const zForH   = CONTENT_HALF_H / Math.tan(fovHalf) * 1.4;
-  const zForW   = LAYOUT_HALF_W  / (Math.tan(fovHalf) * aspect) * 1.4;
-  const z = Math.max(zForH, zForW, 2.5);
+  const zForH   = CONTENT_HALF_H / Math.tan(fovHalf) * 0.85;
+  const zForW   = LAYOUT_HALF_W  / (Math.tan(fovHalf) * aspect) * 0.85;
+  const z = Math.max(zForH, zForW, 1.5);
   camera.position.set(0, CONTENT_MID_Y, z);
   camera.quaternion.identity();
   orbitControls.target.set(0, CONTENT_MID_Y, 0);
@@ -380,6 +462,8 @@ export function enterSettings(
   rebuildChipMesh(font);
   rebuildDetailSectionMesh(font);
   rebuildDetailChipMesh(font);
+  rebuildSpinSectionMesh(font);
+  rebuildSpinChipMesh(font);
 
   setupOverlay(camera, canvasEl);
   setupChipOverlay(camera, canvasEl, () => {
@@ -390,6 +474,9 @@ export function enterSettings(
     rebuildLangSectionMesh(f);
     rebuildChipMesh(f);
     rebuildDetailSectionMesh(f);
+    rebuildDetailChipMesh(f);
+    rebuildSpinSectionMesh(f);
+    rebuildSpinChipMesh(f);
   });
   setupDetailChipOverlay(camera, canvasEl, () => {
     const f = getFont();
@@ -398,6 +485,13 @@ export function enterSettings(
     setDetailMode(next);
     applyDetailMode(next);
     rebuildDetailChipMesh(f);
+  });
+  setupSpinChipOverlay(camera, canvasEl, () => {
+    const f = getFont();
+    if (!f) return;
+    const next = getSphereSpin() === 'on' ? 'off' : 'on';
+    setSphereSpin(next);
+    rebuildSpinChipMesh(f);
   });
 }
 
@@ -415,6 +509,7 @@ export function leaveSettings(
 
   if (langChipOverlay)    { langChipOverlay.remove();    langChipOverlay = null; }
   if (detailChipOverlay)  { detailChipOverlay.remove();  detailChipOverlay = null; }
+  if (spinChipOverlay)    { spinChipOverlay.remove();    spinChipOverlay = null; }
 
   isDragging    = false;
   fillSamples   = null;
@@ -430,6 +525,10 @@ export function leaveSettings(
   if (detailSectionGeo)   { detailSectionGeo.dispose();   detailSectionGeo   = null; }
   if (detailChipMesh)     { scene.remove(detailChipMesh);     (detailChipMesh.material     as THREE.ShaderMaterial).dispose(); detailChipMesh     = null; }
   if (detailChipGeo)      { detailChipGeo.dispose();      detailChipGeo      = null; }
+  if (spinSectionMesh)    { scene.remove(spinSectionMesh);    (spinSectionMesh.material    as THREE.ShaderMaterial).dispose(); spinSectionMesh    = null; }
+  if (spinSectionGeo)     { spinSectionGeo.dispose();     spinSectionGeo     = null; }
+  if (spinChipMesh)       { scene.remove(spinChipMesh);       (spinChipMesh.material       as THREE.ShaderMaterial).dispose(); spinChipMesh       = null; }
+  if (spinChipGeo)        { spinChipGeo.dispose();        spinChipGeo        = null; }
 
   clearParticles(labelIndices);
   clearParticles(outlineIndices);
@@ -438,6 +537,8 @@ export function leaveSettings(
   clearParticles(langChipIndices);
   clearParticles(detailHeadIndices);
   clearParticles(detailChipIndices);
+  clearParticles(spinHeadIndices);
+  clearParticles(spinChipIndices);
 
   if (savedCamPos && savedCamQuat && savedTarget) {
     camera.position.copy(savedCamPos);

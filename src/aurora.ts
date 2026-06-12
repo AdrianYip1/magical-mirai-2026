@@ -9,7 +9,7 @@ export const auroraUniforms = {
 };
 
 export const auroraMesh = new THREE.Mesh(
-  new THREE.SphereGeometry(50, 32, 16),
+  new THREE.SphereGeometry(90, 32, 16),
   new THREE.ShaderMaterial({
     defines: {
       FBM_OCTAVES:  2,
