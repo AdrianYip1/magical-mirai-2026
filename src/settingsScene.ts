@@ -19,37 +19,37 @@ const BAR_HEIGHT = BAR_TOP    - BAR_BOTTOM;
 const LABEL_Y    =  0.35;
 const LABEL_SIZE =  0.4;
 
-const LANG_BTN_Y    = -0.78;
-const LANG_BTN_SIZE =  0.30;
-const LANG_EN_X     = -0.52;
-const LANG_JA_X     =  0.52;
+const LANG_SECTION_Y    = -0.85;
+const LANG_SECTION_SIZE =  0.4;
+const LANG_CHIP_Y       = -1.42;
+const LANG_CHIP_SIZE    =  0.35;
 
-const CONTENT_TOP    = LABEL_Y    + LABEL_SIZE    * 0.6;
-const CONTENT_BOTTOM = LANG_BTN_Y - LANG_BTN_SIZE * 0.6;
+const CONTENT_TOP    = LABEL_Y       + LABEL_SIZE       * 0.6;
+const CONTENT_BOTTOM = LANG_CHIP_Y   - LANG_CHIP_SIZE   * 0.6;
 const CONTENT_MID_Y  = (CONTENT_TOP + CONTENT_BOTTOM) / 2;
 const CONTENT_HALF_H = (CONTENT_TOP - CONTENT_BOTTOM) / 2;
-const LAYOUT_HALF_W  = BAR_HALF_W;
+const LAYOUT_HALF_W  = 1.6;
 
 const SCALE         = COUNT / 65536;
 const LABEL_COUNT   = Math.round(20_000 * SCALE);
 const OUTLINE_COUNT = Math.round( 3_000 * SCALE);
 const FILL_COUNT    = Math.round(12_000 * SCALE);
-const LANG_EN_COUNT = Math.round( 6_000 * SCALE);
-const LANG_JA_COUNT = Math.round( 6_000 * SCALE);
+const LANG_HEAD_COUNT = Math.round(10_000 * SCALE);
+const LANG_CHIP_COUNT = Math.round( 8_000 * SCALE);
 
-const LANG_EN_BASE = LABEL_COUNT + OUTLINE_COUNT + FILL_COUNT;
-const LANG_JA_BASE = LANG_EN_BASE + LANG_EN_COUNT;
+const LANG_HEAD_BASE = LABEL_COUNT + OUTLINE_COUNT + FILL_COUNT;
+const LANG_CHIP_BASE = LANG_HEAD_BASE + LANG_HEAD_COUNT;
 
-const labelIndices   = new Uint32Array(LABEL_COUNT);
-const outlineIndices = new Uint32Array(OUTLINE_COUNT);
-const fillIndices    = new Uint32Array(FILL_COUNT);
-const langEnIndices  = new Uint32Array(LANG_EN_COUNT);
-const langJaIndices  = new Uint32Array(LANG_JA_COUNT);
-for (let i = 0; i < LABEL_COUNT;   i++) labelIndices[i]   = i;
-for (let i = 0; i < OUTLINE_COUNT; i++) outlineIndices[i] = LABEL_COUNT + i;
-for (let i = 0; i < FILL_COUNT;    i++) fillIndices[i]    = LABEL_COUNT + OUTLINE_COUNT + i;
-for (let i = 0; i < LANG_EN_COUNT; i++) langEnIndices[i]  = LANG_EN_BASE + i;
-for (let i = 0; i < LANG_JA_COUNT; i++) langJaIndices[i]  = LANG_JA_BASE + i;
+const labelIndices    = new Uint32Array(LABEL_COUNT);
+const outlineIndices  = new Uint32Array(OUTLINE_COUNT);
+const fillIndices     = new Uint32Array(FILL_COUNT);
+const langHeadIndices = new Uint32Array(LANG_HEAD_COUNT);
+const langChipIndices = new Uint32Array(LANG_CHIP_COUNT);
+for (let i = 0; i < LABEL_COUNT;     i++) labelIndices[i]    = i;
+for (let i = 0; i < OUTLINE_COUNT;   i++) outlineIndices[i]  = LABEL_COUNT + i;
+for (let i = 0; i < FILL_COUNT;      i++) fillIndices[i]     = LABEL_COUNT + OUTLINE_COUNT + i;
+for (let i = 0; i < LANG_HEAD_COUNT; i++) langHeadIndices[i] = LANG_HEAD_BASE + i;
+for (let i = 0; i < LANG_CHIP_COUNT; i++) langChipIndices[i] = LANG_CHIP_BASE + i;
 
 function makeGlassMat(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
@@ -74,12 +74,11 @@ let barMesh:   THREE.Mesh           | null = null;
 let fillSamples:  Float32Array | null = null;
 let prevFillCount = -1;
 
-let langEnGeo:  THREE.BufferGeometry | null = null;
-let langJaGeo:  THREE.BufferGeometry | null = null;
-let langEnMesh: THREE.Mesh | null = null;
-let langJaMesh: THREE.Mesh | null = null;
-let langEnOverlay: HTMLDivElement | null = null;
-let langJaOverlay: HTMLDivElement | null = null;
+let langSectionGeo:  THREE.BufferGeometry | null = null;
+let langSectionMesh: THREE.Mesh | null = null;
+let langChipGeo:     THREE.BufferGeometry | null = null;
+let langChipMesh:    THREE.Mesh | null = null;
+let langChipOverlay: HTMLDivElement | null = null;
 
 let savedCamPos:  THREE.Vector3    | null = null;
 let savedCamQuat: THREE.Quaternion | null = null;
@@ -139,21 +138,6 @@ function updateBar(v: number) {
   prevFillCount = fillCount;
 }
 
-function updateLangParticles() {
-  const lang = getLanguage();
-  if (lang === 'en') {
-    if (langEnGeo) activateWordParticles(langEnIndices, sampleSurface(langEnGeo, LANG_EN_COUNT));
-    clearParticles(langJaIndices);
-    if (langEnMesh) (langEnMesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = 1.0;
-    if (langJaMesh) (langJaMesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = 0.3;
-  } else {
-    if (langJaGeo) activateWordParticles(langJaIndices, sampleSurface(langJaGeo, LANG_JA_COUNT));
-    clearParticles(langEnIndices);
-    if (langEnMesh) (langEnMesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = 0.3;
-    if (langJaMesh) (langJaMesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = 1.0;
-  }
-}
-
 function worldToScreen(wx: number, wy: number, camera: THREE.Camera, el: HTMLCanvasElement) {
   const v = new THREE.Vector3(wx, wy, 0).project(camera);
   return { x: (v.x + 1) / 2 * el.clientWidth, y: (-v.y + 1) / 2 * el.clientHeight };
@@ -185,28 +169,27 @@ function setupOverlay(camera: THREE.Camera, canvasEl: HTMLCanvasElement) {
   window.addEventListener('pointerup',     onUp);
 }
 
-function setupLangOverlays(camera: THREE.Camera, canvasEl: HTMLCanvasElement) {
-  const enPos = worldToScreen(LANG_EN_X, LANG_BTN_Y, camera, canvasEl);
-  const jaPos = worldToScreen(LANG_JA_X, LANG_BTN_Y, camera, canvasEl);
-  const W = 100, H = 60;
+function setupChipOverlay(
+  camera: THREE.Camera,
+  canvasEl: HTMLCanvasElement,
+  onToggle: () => void,
+) {
+  const W = 140, H = 80;
+  const pos = worldToScreen(0, LANG_CHIP_Y, camera, canvasEl);
 
-  langEnOverlay = document.createElement('div');
-  Object.assign(langEnOverlay.style, {
-    position: 'fixed', cursor: 'pointer', zIndex: '20', touchAction: 'none',
-    left: `${enPos.x - W / 2}px`, top: `${enPos.y - H / 2}px`,
-    width: `${W}px`, height: `${H}px`,
+  langChipOverlay = document.createElement('div');
+  Object.assign(langChipOverlay.style, {
+    position:    'fixed',
+    cursor:      'pointer',
+    zIndex:      '20',
+    touchAction: 'none',
+    left:        `${pos.x - W / 2}px`,
+    top:         `${pos.y - H / 2}px`,
+    width:       `${W}px`,
+    height:      `${H}px`,
   });
-  document.body.appendChild(langEnOverlay);
-  langEnOverlay.addEventListener('pointerdown', () => { setLanguage('en'); updateLangParticles(); });
-
-  langJaOverlay = document.createElement('div');
-  Object.assign(langJaOverlay.style, {
-    position: 'fixed', cursor: 'pointer', zIndex: '20', touchAction: 'none',
-    left: `${jaPos.x - W / 2}px`, top: `${jaPos.y - H / 2}px`,
-    width: `${W}px`, height: `${H}px`,
-  });
-  document.body.appendChild(langJaOverlay);
-  langJaOverlay.addEventListener('pointerdown', () => { setLanguage('ja'); updateLangParticles(); });
+  document.body.appendChild(langChipOverlay);
+  langChipOverlay.addEventListener('pointerdown', onToggle);
 }
 
 function fromPointerX(clientX: number): number {
@@ -220,6 +203,62 @@ function onUp()                  { isDragging = false; }
 function applyVolume(v: number) {
   setVolume(v);
   updateBar(v);
+}
+
+function rebuildLabelMesh(font: NonNullable<ReturnType<typeof getFont>>) {
+  if (labelMesh) { scene.remove(labelMesh); (labelMesh.material as THREE.ShaderMaterial).dispose(); labelMesh = null; }
+  if (labelGeo)  { labelGeo.dispose(); labelGeo = null; }
+
+  const text = getLanguage() === 'ja' ? '音量' : 'VOLUME';
+  labelGeo = new TextGeometry(text, {
+    font, size: LABEL_SIZE, depth: 0.18, curveSegments: 4,
+  });
+  labelGeo.computeBoundingBox();
+  const bb = labelGeo.boundingBox!;
+  labelGeo.translate(
+    -(bb.min.x + bb.max.x) / 2,
+    -(bb.min.y + bb.max.y) / 2 + LABEL_Y,
+    0,
+  );
+  activateWordParticles(labelIndices, sampleSurface(labelGeo, LABEL_COUNT));
+  labelMesh = new THREE.Mesh(labelGeo, makeGlassMat());
+  scene.add(labelMesh);
+}
+
+function rebuildLangSectionMesh(font: NonNullable<ReturnType<typeof getFont>>) {
+  if (langSectionMesh) { scene.remove(langSectionMesh); (langSectionMesh.material as THREE.ShaderMaterial).dispose(); langSectionMesh = null; }
+  if (langSectionGeo)  { langSectionGeo.dispose(); langSectionGeo = null; }
+
+  const text = getLanguage() === 'ja' ? '言語' : 'LANGUAGES';
+  langSectionGeo = new TextGeometry(text, { font, size: LANG_SECTION_SIZE, depth: 0.08, curveSegments: 4 });
+  langSectionGeo.computeBoundingBox();
+  const bb = langSectionGeo.boundingBox!;
+  langSectionGeo.translate(
+    -(bb.min.x + bb.max.x) / 2,
+    -(bb.min.y + bb.max.y) / 2 + LANG_SECTION_Y,
+    0,
+  );
+  activateWordParticles(langHeadIndices, sampleSurface(langSectionGeo, LANG_HEAD_COUNT));
+  langSectionMesh = new THREE.Mesh(langSectionGeo, makeGlassMat());
+  scene.add(langSectionMesh);
+}
+
+function rebuildChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
+  if (langChipMesh) { scene.remove(langChipMesh); (langChipMesh.material as THREE.ShaderMaterial).dispose(); langChipMesh = null; }
+  if (langChipGeo)  { langChipGeo.dispose(); langChipGeo = null; }
+
+  const text = getLanguage() === 'ja' ? 'JA' : 'EN';
+  langChipGeo = new TextGeometry(text, { font, size: LANG_CHIP_SIZE, depth: 0.10, curveSegments: 4 });
+  langChipGeo.computeBoundingBox();
+  const bb = langChipGeo.boundingBox!;
+  langChipGeo.translate(
+    -(bb.min.x + bb.max.x) / 2,
+    -(bb.min.y + bb.max.y) / 2 + LANG_CHIP_Y,
+    -(bb.min.z + bb.max.z) / 2,
+  );
+  activateWordParticles(langChipIndices, sampleSurface(langChipGeo, LANG_CHIP_COUNT));
+  langChipMesh = new THREE.Mesh(langChipGeo, makeGlassMat());
+  scene.add(langChipMesh);
 }
 
 export function enterSettings(
@@ -240,28 +279,17 @@ export function enterSettings(
 
   const fovHalf = (camera.fov / 2) * (Math.PI / 180);
   const aspect  = canvasEl.clientWidth / canvasEl.clientHeight;
-  const zForH   = CONTENT_HALF_H / Math.tan(fovHalf) * 1.7;
-  const zForW   = LAYOUT_HALF_W  / (Math.tan(fovHalf) * aspect) * 1.7;
-  const z = Math.max(zForH, zForW, 3);
+  const zForH   = CONTENT_HALF_H / Math.tan(fovHalf) * 1.4;
+  const zForW   = LAYOUT_HALF_W  / (Math.tan(fovHalf) * aspect) * 1.4;
+  const z = Math.max(zForH, zForW, 2.5);
   camera.position.set(0, CONTENT_MID_Y, z);
   camera.quaternion.identity();
   orbitControls.target.set(0, CONTENT_MID_Y, 0);
   orbitControls.update();
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld(true);
 
-  // Volume label
-  labelGeo = new TextGeometry(getLanguage() === 'ja' ? '音量' : 'VOLUME', {
-    font, size: LABEL_SIZE, depth: 0.18, curveSegments: 4,
-  });
-  labelGeo.computeBoundingBox();
-  const bb = labelGeo.boundingBox!;
-  labelGeo.translate(
-    -(bb.min.x + bb.max.x) / 2,
-    -(bb.min.y + bb.max.y) / 2 + LABEL_Y,
-    0,
-  );
-  activateWordParticles(labelIndices, sampleSurface(labelGeo, LABEL_COUNT));
-  labelMesh = new THREE.Mesh(labelGeo, makeGlassMat());
-  scene.add(labelMesh);
+  rebuildLabelMesh(font);
 
   // Volume bar
   const barGeo = new THREE.BoxGeometry(BAR_WIDTH, BAR_HEIGHT, 0.06);
@@ -276,34 +304,18 @@ export function enterSettings(
   fillSamples   = buildFillSamples();
   updateBar(getVolume());
 
-  // Language toggle — EN
-  langEnGeo = new TextGeometry('EN', { font, size: LANG_BTN_SIZE, depth: 0.10, curveSegments: 4 });
-  langEnGeo.computeBoundingBox();
-  const enBb = langEnGeo.boundingBox!;
-  langEnGeo.translate(
-    -(enBb.min.x + enBb.max.x) / 2 + LANG_EN_X,
-    -(enBb.min.y + enBb.max.y) / 2 + LANG_BTN_Y,
-    -(enBb.min.z + enBb.max.z) / 2,
-  );
-  langEnMesh = new THREE.Mesh(langEnGeo, makeGlassMat());
-  scene.add(langEnMesh);
-
-  // Language toggle — JA
-  langJaGeo = new TextGeometry('JA', { font, size: LANG_BTN_SIZE, depth: 0.10, curveSegments: 4 });
-  langJaGeo.computeBoundingBox();
-  const jaBb = langJaGeo.boundingBox!;
-  langJaGeo.translate(
-    -(jaBb.min.x + jaBb.max.x) / 2 + LANG_JA_X,
-    -(jaBb.min.y + jaBb.max.y) / 2 + LANG_BTN_Y,
-    -(jaBb.min.z + jaBb.max.z) / 2,
-  );
-  langJaMesh = new THREE.Mesh(langJaGeo, makeGlassMat());
-  scene.add(langJaMesh);
-
-  updateLangParticles();
+  rebuildLangSectionMesh(font);
+  rebuildChipMesh(font);
 
   setupOverlay(camera, canvasEl);
-  setupLangOverlays(camera, canvasEl);
+  setupChipOverlay(camera, canvasEl, () => {
+    const f = getFont();
+    if (!f) return;
+    setLanguage(getLanguage() === 'en' ? 'ja' : 'en');
+    rebuildLabelMesh(f);
+    rebuildLangSectionMesh(f);
+    rebuildChipMesh(f);
+  });
 }
 
 export function leaveSettings(
@@ -318,8 +330,7 @@ export function leaveSettings(
     overlayEl = null;
   }
 
-  if (langEnOverlay) { langEnOverlay.remove(); langEnOverlay = null; }
-  if (langJaOverlay) { langJaOverlay.remove(); langJaOverlay = null; }
+  if (langChipOverlay) { langChipOverlay.remove(); langChipOverlay = null; }
 
   isDragging    = false;
   fillSamples   = null;
@@ -329,13 +340,13 @@ export function leaveSettings(
   if (labelGeo)  { labelGeo.dispose(); labelGeo = null; }
   if (barMesh)   { scene.remove(barMesh); (barMesh.material as THREE.ShaderMaterial).dispose(); barMesh = null; }
 
-  if (langEnMesh) { scene.remove(langEnMesh); (langEnMesh.material as THREE.ShaderMaterial).dispose(); langEnMesh = null; }
-  if (langEnGeo)  { langEnGeo.dispose(); langEnGeo = null; }
-  if (langJaMesh) { scene.remove(langJaMesh); (langJaMesh.material as THREE.ShaderMaterial).dispose(); langJaMesh = null; }
-  if (langJaGeo)  { langJaGeo.dispose(); langJaGeo = null; }
+  if (langSectionMesh) { scene.remove(langSectionMesh); (langSectionMesh.material as THREE.ShaderMaterial).dispose(); langSectionMesh = null; }
+  if (langSectionGeo)  { langSectionGeo.dispose(); langSectionGeo = null; }
+  if (langChipMesh) { scene.remove(langChipMesh); (langChipMesh.material as THREE.ShaderMaterial).dispose(); langChipMesh = null; }
+  if (langChipGeo)  { langChipGeo.dispose(); langChipGeo = null; }
 
-  clearParticles(langEnIndices);
-  clearParticles(langJaIndices);
+  clearParticles(langHeadIndices);
+  clearParticles(langChipIndices);
 
   if (savedCamPos && savedCamQuat && savedTarget) {
     camera.position.copy(savedCamPos);
