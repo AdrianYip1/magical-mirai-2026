@@ -15,7 +15,7 @@ export function getLayoutHalfExtents(): { halfH: number; halfW: number } {
   const isMobile  = window.innerWidth < window.innerHeight;
   const fontHalf  = isMobile ? 2.25 : 1.5;  // FONT_SIZE/2 * 1.5 scaling factor
   const halfH     = Math.max(fontHalf, (layoutMaxLines - 1) * 2.0 + fontHalf);
-  const halfW     = (isMobile ? 7.0 : 14.0) / 2;
+  const halfW     = (isMobile ? 11.0 : 14.0) / 2;
   return { halfH, halfW };
 }
 
@@ -332,7 +332,7 @@ export function buildLayout(phrases: IPhrase[]) {
   const LINE_HEIGHT  = 4.0;
   const SPACING      = 0.5;
   const CHAR_SPACING = 0.35;
-  const MAX_WIDTH    = isMobile ? 7.0 : 14.0;
+  const MAX_WIDTH    = isMobile ? 11.0 : 14.0;
 
   let poolOffset = 0;
 

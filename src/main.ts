@@ -159,7 +159,8 @@ function computeSongCameraZ(): number {
   const fovHalf = (camera.fov / 2) * (Math.PI / 180);
   const fill    = 0.70; // 15% whitespace top+bottom
   const zForH   = halfH / (Math.tan(fovHalf) * fill);
-  return Math.max(zForH, 12); // min Z=12 keeps camera between spheres
+  const minZ    = window.innerWidth < window.innerHeight ? 8 : 12;
+  return Math.max(zForH, minZ);
 }
 
 // Songs that need the camera outside the outer sphere to show reflections/refractions.
