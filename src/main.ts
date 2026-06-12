@@ -154,25 +154,24 @@ function hideLoading(gen: number) {
   setPreviewLoading(false);
 }
 
-let mobileCameraZTarget  = 12;
-let mobileCameraZRaf     = 0;
-let phraseCameraZMax     = 0; // highest Z needed by any word in the current phrase
+let wordCameraZTarget = 12;
+let wordCameraZRaf    = 0;
+let phraseCameraZMax  = 0;
 
-function tickMobileCameraZ() {
-  const diff = mobileCameraZTarget - camera.position.z;
+function tickWordCameraZ() {
+  const diff = wordCameraZTarget - camera.position.z;
   if (Math.abs(diff) < 0.05) {
-    camera.position.z = mobileCameraZTarget;
-    mobileCameraZRaf  = 0;
+    camera.position.z = wordCameraZTarget;
+    wordCameraZRaf    = 0;
     return;
   }
   camera.position.z += diff * 0.06;
-  controls.update();
-  mobileCameraZRaf = requestAnimationFrame(tickMobileCameraZ);
+  wordCameraZRaf = requestAnimationFrame(tickWordCameraZ);
 }
 
-function setMobileCameraZ(z: number) {
-  mobileCameraZTarget = z;
-  if (!mobileCameraZRaf) mobileCameraZRaf = requestAnimationFrame(tickMobileCameraZ);
+function setWordCameraZ(z: number) {
+  wordCameraZTarget = z;
+  if (!wordCameraZRaf) wordCameraZRaf = requestAnimationFrame(tickWordCameraZ);
 }
 
 function computeSongCameraZ(): number {
@@ -183,7 +182,7 @@ function computeSongCameraZ(): number {
   const MOBILE_FILL  = 0.70;
   const MOBILE_MIN_Z = 9;
   const PC_FILL   = 0.70;
-  const PC_MIN_Z  = 12;
+  const PC_MIN_Z  = 9;
 
   const isMobileView = window.innerWidth < window.innerHeight;
   const minZ = isMobileView ? MOBILE_MIN_Z : PC_MIN_Z;
@@ -375,6 +374,9 @@ function triggerBack() {
     clearStaticText(); setFadeRate(0.25);
     if (wasInPlayback) {
       setSongMode(false);
+      cancelAnimationFrame(wordCameraZRaf);
+      wordCameraZRaf    = 0;
+      wordCameraZTarget = 58;
       camera.position.set(0, 0, 58);
       controls.target.set(0, 0, 0);
       controls.minDistance = 22;
@@ -527,9 +529,9 @@ player.addListener({
         setTimeout(() => clearPhrase(stale), 900);
       }
       currentPhrase = phrase;
-      if (window.innerWidth < window.innerHeight && focusedUrl) {
+      if (focusedUrl) {
         phraseCameraZMax = effectiveSongCameraZ(focusedUrl);
-        setMobileCameraZ(phraseCameraZMax);
+        setWordCameraZ(phraseCameraZMax);
       }
     }
 
@@ -541,15 +543,14 @@ player.addListener({
         currentWord = word;
         if (word) {
           setWord(word);
-          if (window.innerWidth < window.innerHeight && focusedUrl) {
-            const fovHalf = (camera.fov / 2) * (Math.PI / 180);
-            const aspect  = canvas.clientWidth / canvas.clientHeight;
-            const MOBILE_FILL = 0.70;
+          if (focusedUrl) {
+            const fovHalf  = (camera.fov / 2) * (Math.PI / 180);
+            const aspect   = canvas.clientWidth / canvas.clientHeight;
             const halfX    = getWordHalfExtentX(word);
-            const zForWord = halfX / (Math.tan(fovHalf) * aspect * MOBILE_FILL);
+            const zForWord = halfX / (Math.tan(fovHalf) * aspect * 0.70);
             const baseZ    = effectiveSongCameraZ(focusedUrl);
             phraseCameraZMax = Math.max(phraseCameraZMax, zForWord, baseZ);
-            setMobileCameraZ(phraseCameraZMax);
+            setWordCameraZ(phraseCameraZMax);
           }
         } else clearCurrentWord();
       }
