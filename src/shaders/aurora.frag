@@ -103,13 +103,83 @@ vec3 auroraSky(vec3 dir, float t) {
     return aur * smoothstep(-0.05, 0.10, dir.y);
 }
 
-// Sparse twinkling stars, denser toward the zenith.
-float stars(vec3 dir) {
+float distToSeg(vec2 p, vec2 a, vec2 b) {
+    vec2 pa = p - a, ba = b - a;
+    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    return length(pa - ba * h);
+}
+
+// One grid layer of soft point stars. thresh: per-cell presence cutoff.
+vec3 starLayer(vec2 uv, float cells, float thresh, float seed) {
+    vec2 p    = uv * cells;
+    vec2 cell = floor(p);
+    vec2 f    = fract(p);
+
+    float h0 = hash2(cell + seed);
+    if (h0 < thresh) return vec3(0.0);
+
+    vec2  pos = clamp(vec2(hash2(cell + seed + 11.3),
+                           hash2(cell + seed + 27.7)), 0.15, 0.85);
+    float mag = pow(hash2(cell + seed + 41.1), 2.0);   // few bright, many faint
+    float tw  = hash2(cell + seed + 5.9);
+
+    float radius = mix(0.09, 0.26, mag);                // brighter = larger
+    float d      = length(f - pos);
+    float core   = pow(smoothstep(radius, 0.0, d), 2.0);
+
+    float rate = 0.5 + tw * 2.0;
+    float amt  = tw * 0.5;
+    float twk  = 1.0 - amt + amt * (0.5 + 0.5 * sin(uTime * rate + tw * 60.0));
+
+    vec3 cool = vec3(0.62, 0.78, 1.00);
+    vec3 warm = vec3(1.00, 0.93, 0.82);
+    vec3 tint = mix(cool, warm, hash2(cell + seed + 71.0) * 0.5);
+
+    return tint * (mag * core * twk);
+}
+
+// Drifting starfield + a tilted milky-way band.
+vec3 starField(vec3 dir) {
     vec2 uv = dir.xz / (abs(dir.y) + 0.35);
-    vec2 g  = floor(uv * 64.0);
-    float h = hash2(g);
-    float s = step(0.992, h);
-    return s * (0.4 + 0.6 * sin(uTime * 1.7 + h * 120.0));
+
+    vec3  bandN = normalize(vec3(0.45, 0.5, -0.74));
+    float bd    = dot(normalize(dir), bandN);
+    float band  = exp(-bd * bd * 9.0);
+#if LOW_QUALITY
+    float clouds = 0.7;
+#else
+    float clouds = 0.5 + 0.5 * (noise(uv * 3.0) * 0.6 + noise(uv * 7.0) * 0.4);
+#endif
+
+    float thresh1 = mix(0.965, 0.90, band);
+
+    vec3 col = vec3(0.0);
+    col += starLayer(uv + vec2(uTime * 0.0040, uTime *  0.0010),  90.0, thresh1, 0.0);
+#if !LOW_QUALITY
+    float thresh2 = mix(0.950, 0.86, band);
+    col += starLayer(uv + vec2(uTime * 0.0025, uTime * -0.0015), 150.0, thresh2, 53.0) * 0.7;
+#endif
+    col += mix(vec3(0.20, 0.32, 0.55), MIKU_TEAL, 0.3) * band * clouds * 0.05;
+
+    return col;
+}
+
+// Occasional meteor streaks. One candidate window every PERIOD seconds.
+float shootingStars(vec2 uv) {
+    const float PERIOD = 7.0;
+    float idx = floor(uTime / PERIOD);
+    float lt  = fract(uTime / PERIOD);
+    if (hash2(vec2(idx, 1.7)) < 0.5) return 0.0;        // ~half the windows spawn one
+
+    vec2  start = (vec2(hash2(vec2(idx, 9.1)), hash2(vec2(idx, 4.3))) - 0.5) * 3.0;
+    float ang   = hash2(vec2(idx, 6.6)) * 6.2831;
+    vec2  vel   = vec2(cos(ang), sin(ang));
+
+    vec2  head = start + vel * lt * 3.0;
+    vec2  tail = head - vel * 0.5;
+    float d    = distToSeg(uv, tail, head);
+    float life = sin(lt * 3.14159);
+    return smoothstep(0.015, 0.0, d) * life * life;
 }
 
 void main() {
@@ -120,8 +190,10 @@ void main() {
     if (dir.y >= 0.0) {
         col = mix(vec3(0.010, 0.030, 0.052),
                   vec3(0.000, 0.002, 0.012), smoothstep(0.0, 0.6, dir.y));
-        col += vec3(0.70, 0.82, 1.00) * stars(dir)
-             * smoothstep(0.06, 0.5, dir.y) * 0.6;
+        col += starField(dir) * smoothstep(0.04, 0.4, dir.y) * 1.5;
+        col += vec3(0.85, 0.92, 1.00)
+             * shootingStars(dir.xz / (abs(dir.y) + 0.35))
+             * smoothstep(0.12, 0.4, dir.y);
         col += auroraSky(dir, t);
         col += MIKU_TEAL * exp(-dir.y * 7.0) * 0.04;
     } else {
@@ -148,8 +220,12 @@ void main() {
                           vec3(0.000, 0.002, 0.010), smoothstep(0.0, 0.7, depth));
 
         col  = mix(water, refl, fres);
-        col += vec3(0.55, 0.95, 1.00) * stars(rdir)
-             * smoothstep(0.02, 0.25, depth) * fres * 0.2;
+        col += starField(rdir) * smoothstep(0.02, 0.35, depth) * fres * 1.2;
+#if !LOW_QUALITY
+        col += vec3(0.85, 0.92, 1.00)
+             * shootingStars(rdir.xz / (abs(rdir.y) + 0.35))
+             * smoothstep(0.02, 0.30, depth) * fres * 0.8;
+#endif
         col += MIKU_TEAL * exp(-depth * 14.0) * 0.06;
 
         float glint = pow(max(0.0, n1 * n2 * 1.3), 9.0);

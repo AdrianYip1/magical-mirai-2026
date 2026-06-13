@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import auroraVert from './shaders/aurora.vert?raw';
 import auroraFrag from './shaders/aurora.frag?raw';
+import { IS_MOBILE } from './perf';
 
 export const auroraUniforms = {
   uTime:          { value: 0.0 },
@@ -17,8 +18,9 @@ export const auroraMesh = new THREE.Mesh(
   new THREE.SphereGeometry(90, 32, 16),
   new THREE.ShaderMaterial({
     defines: {
-      FBM_OCTAVES:  3,
-      AURORA_BANDS: 3,
+      FBM_OCTAVES:  IS_MOBILE ? 2 : 3,
+      AURORA_BANDS: IS_MOBILE ? 2 : 3,
+      LOW_QUALITY:  IS_MOBILE ? 1 : 0,
     },
     vertexShader:   auroraVert,
     fragmentShader: auroraFrag,
