@@ -1,6 +1,10 @@
 // FBM_OCTAVES and AURORA_BANDS injected via ShaderMaterial.defines.
 
 uniform float uTime;
+uniform float uVocalAmp;
+uniform float uChorusFactor;
+uniform vec3  uChordTint;
+uniform float uChordStrength;
 varying vec3 vWorldPos;
 
 float hash2(vec2 p) {

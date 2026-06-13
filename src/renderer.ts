@@ -85,6 +85,15 @@ cubeLargeCamera.layers.set(0);
 cubeLargeCamera.layers.enable(1);
 scene.add(cubeLargeCamera);
 
+const sharedGlassUniforms = {
+  uBeatProgress:   { value: 0.0 },
+  uChorusFactor:   { value: 0.0 },
+  uTime:           { value: 0.0 },
+  uRippleTime:     { value: new Float32Array(4) },
+  uRippleStrength: { value: new Float32Array(4) },
+  uRippleDir:      { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] },
+};
+
 export const glassInnerUniforms = {
   uCameraPos:    { value: camera.position },
   uBeatIntensity:{ value: 0.0 },
@@ -93,6 +102,7 @@ export const glassInnerUniforms = {
   uRadius:       { value: SPHERE_RADIUS },
   uDetailLevel:  { value: 1.0 },
   uFill:         { value: 0.0 },
+  ...sharedGlassUniforms,
 };
 
 export const glassOuterUniforms = {
@@ -103,6 +113,7 @@ export const glassOuterUniforms = {
   uRadius:       { value: SPHERE_RADIUS * 3 },
   uDetailLevel:  { value: 1.0 },
   uFill:         { value: 0.0 },
+  ...sharedGlassUniforms,
 };
 
 export const sphereMesh = drawSphere(scene, MIN_VERTS, glassInnerUniforms, 1);
@@ -219,6 +230,25 @@ export function triggerBeat(strength: number) {
   beatIntensity = strength;
 }
 
+let rippleIdx    = 0;
+let chorusTarget = 0;
+
+export function setBeatProgress(v: number) {
+  sharedGlassUniforms.uBeatProgress.value = v;
+}
+
+export function setChorusFactor(v: number) {
+  chorusTarget = v;
+}
+
+export function fireDownbeat(strength: number, dir: THREE.Vector3) {
+  const slot = rippleIdx % 4;
+  rippleIdx++;
+  sharedGlassUniforms.uRippleTime.value[slot]     = elapsed;
+  sharedGlassUniforms.uRippleStrength.value[slot] = strength;
+  sharedGlassUniforms.uRippleDir.value[slot].copy(dir);
+}
+
 let activeCubeCamera: THREE.CubeCamera = cubeCamera;
 let activeCubeInterval = CUBE_INTERVAL;
 let activeRenderTarget: THREE.WebGLRenderTarget = renderTarget;
@@ -292,6 +322,10 @@ export function animate() {
   glassOuterUniforms.uCameraPos.value = camera.position;
   glassInnerUniforms.uBeatIntensity.value = beatIntensity;
   glassOuterUniforms.uBeatIntensity.value = beatIntensity;
+
+  sharedGlassUniforms.uTime.value = elapsed;
+  sharedGlassUniforms.uChorusFactor.value +=
+    (chorusTarget - sharedGlassUniforms.uChorusFactor.value) * 0.05;
 
   tickAurora(elapsed);
 

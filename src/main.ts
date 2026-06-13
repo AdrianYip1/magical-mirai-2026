@@ -1,7 +1,8 @@
 import './style.css';
 import * as THREE from 'three';
-import { Player, IPlayerApp, IWord, IPhrase, IBeat, IChar } from 'textalive-app-api';
-import { canvas, animate, glassInnerUniforms, glassOuterUniforms, renderer, scene, cubeCamera, cubeLargeCamera, triggerBeat, camera, controls, cylinderMesh, flushCubemapNow, setCylinderSegments, setMenuMode, setSettingsMode, setSongMode, setHideOuterSphere, menuState } from './renderer';
+import { Player, IPlayerApp, IWord, IPhrase, IBeat, IChar, IChord } from 'textalive-app-api';
+import { canvas, animate, glassInnerUniforms, glassOuterUniforms, renderer, scene, cubeCamera, cubeLargeCamera, triggerBeat, setBeatProgress, setChorusFactor, fireDownbeat, camera, controls, cylinderMesh, flushCubemapNow, setCylinderSegments, setMenuMode, setSettingsMode, setSongMode, setHideOuterSphere, menuState } from './renderer';
+import { setAuroraVocalAmp, setAuroraChorusTarget, setChordTarget } from './aurora';
 import { mountSphereSongSelect, getLastMenuParticles } from './sphereSelect';
 import type { WheelItem, DiParticle } from './sphereSelect';
 import type { SongOption } from './songSelect';
@@ -35,6 +36,7 @@ let timerReady = false;
 const player = new Player({
   app: { token: import.meta.env.VITE_TEXTALIVE_TOKEN ?? '' },
   mediaElement: document.createElement('audio'),
+  vocalAmplitudeEnabled: true,
 });
 
 previewAudio.hydrateFromCache(songs.map(s => s.url));
@@ -103,8 +105,9 @@ function requestLoad(song: SongOption, cb: () => void) {
 
 function ensureMeshes() {
   if (!fontReady || !player.video || !focusedUrl) return;
-  if (currentUrl !== focusedUrl) return;        // loaded video isn't the focused song
-  if (meshesBuiltUrl === focusedUrl) return;    // already built
+  if (currentUrl !== focusedUrl) return;
+  if (meshesBuiltUrl === focusedUrl) return;
+  if (!player.video.phrases?.length) return;
   buildLayout(player.video.phrases);
   meshesBuiltUrl = focusedUrl;
   if (inPlayback) {
@@ -501,6 +504,35 @@ let currentWord:   IWord   | null = null;
 let currentChar:   IChar   | null = null;
 let currentPhrase: IPhrase | null = null;
 let currentBeat:   IBeat   | null = null;
+let currentChord:  IChord  | null = null;
+
+const SEMITONES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const FLAT_MAP: Record<string,string> = {
+  Db:'C#',Eb:'D#',Fb:'E',Gb:'F#',Ab:'G#',Bb:'A#',Cb:'B',
+};
+
+function hue2rgb(p: number, q: number, t: number): number {
+  if (t < 0) t += 1; if (t > 1) t -= 1;
+  if (t < 1/6) return p + (q - p) * 6 * t;
+  if (t < 1/2) return q;
+  if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+  return p;
+}
+
+function chordToRgb(name: string): [number, number, number] {
+  let root = name.length > 1 && (name[1] === '#' || name[1] === 'b')
+    ? name.slice(0, 2) : name[0];
+  root = FLAT_MAP[root] ?? root;
+  const idx   = SEMITONES.indexOf(root);
+  const hue   = idx >= 0 ? (idx / 12) * 360 : 0;
+  const minor = /m(?!aj)/i.test(name.slice(root.length));
+  const s = minor ? 0.65 : 0.85;
+  const l = minor ? 0.48 : 0.58;
+  const h = hue / 360;
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  return [hue2rgb(p, q, h + 1/3), hue2rgb(p, q, h), hue2rgb(p, q, h - 1/3)];
+}
 
  initLyrics(() => {
     fontReady = true;
@@ -509,6 +541,10 @@ let currentBeat:   IBeat   | null = null;
 
 player.addListener({
   onAppReady(_app: IPlayerApp) {},
+
+  onStop() {
+    if (inPlayback) setTimeout(() => { if (inPlayback) triggerBack(); }, 2500);
+  },
 
   onVideoReady() {
     console.info(`[load] videoReady +${Math.round(performance.now() - loadStart)}ms`, currentUrl);
@@ -534,14 +570,46 @@ player.addListener({
   onTimeUpdate(position: number) {
     if (!player.video) return;
 
+    const chorus   = player.findChorus(position);
+    const inChorus = !!chorus;
 
     const beat = player.findBeat(position);
     if (beat !== currentBeat) {
       currentBeat = beat;
       glassInnerUniforms.uBeatIntensity.value = 1.0;
       glassOuterUniforms.uBeatIntensity.value = 1.0;
-      if (player.findChorus(position)) triggerBeat(1.0);
+
+      if (beat && beat.position === 0) {
+        const str = inChorus ? 1.0 : 0.55;
+        const dir = new THREE.Vector3(
+          (Math.random() - 0.5) * 2,
+          Math.random() * 0.6 + 0.2,
+          (Math.random() - 0.5) * 2,
+        ).normalize();
+        fireDownbeat(str, dir);
+      }
+
+      if (inChorus) triggerBeat(1.0);
       wheel.beat(1.0);
+    }
+
+    if (beat) {
+      const prog = Math.max(0, Math.min(1, beat.progress(position)));
+      setBeatProgress(prog * (inChorus ? 1.0 : 0.45));
+    }
+
+    if (player.getVocalAmplitude) setAuroraVocalAmp(player.getVocalAmplitude(position));
+
+    setChorusFactor(inChorus ? 1.0 : 0.0);
+    setAuroraChorusTarget(inChorus ? 1.0 : 0.0);
+
+    const chord = player.findChord(position);
+    if (chord !== currentChord) {
+      currentChord = chord;
+      if (chord) {
+        const [r, g, b] = chordToRgb(chord.name);
+        setChordTarget(r, g, b);
+      }
     }
 
     const phrase = player.video.findPhrase(position);

@@ -3,7 +3,11 @@ import auroraVert from './shaders/aurora.vert?raw';
 import auroraFrag from './shaders/aurora.frag?raw';
 
 export const auroraUniforms = {
-  uTime: { value: 0.0 },
+  uTime:          { value: 0.0 },
+  uVocalAmp:      { value: 0.0 },
+  uChorusFactor:  { value: 0.0 },
+  uChordTint:     { value: new THREE.Vector3(0, 0, 0) },
+  uChordStrength: { value: 0.0 },
 };
 
 export const auroraMesh = new THREE.Mesh(
@@ -20,9 +24,31 @@ export const auroraMesh = new THREE.Mesh(
     depthWrite:     false,
   }),
 );
-// Render before everything else so it sits behind all foreground elements.
 auroraMesh.renderOrder = -1;
+
+const chordTintTarget  = new THREE.Vector3(0, 0, 0);
+let   chorusTarget     = 0;
 
 export function tickAurora(elapsed: number) {
   auroraUniforms.uTime.value = elapsed;
+  auroraUniforms.uChorusFactor.value +=
+    (chorusTarget - auroraUniforms.uChorusFactor.value) * 0.03;
+  auroraUniforms.uChordTint.value.lerp(chordTintTarget, 0.008);
+  auroraUniforms.uChordStrength.value *= 0.997;
+}
+
+export function setAuroraVocalAmp(v: number) {
+  auroraUniforms.uVocalAmp.value = v;
+}
+
+export function setAuroraChorusTarget(v: number) {
+  chorusTarget = v;
+}
+
+export function setChordTarget(r: number, g: number, b: number) {
+  chordTintTarget.set(r, g, b);
+  auroraUniforms.uChordStrength.value = Math.min(
+    0.35,
+    auroraUniforms.uChordStrength.value + 0.20,
+  );
 }
