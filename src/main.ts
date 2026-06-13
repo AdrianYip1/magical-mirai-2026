@@ -284,30 +284,43 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       canvas.style.opacity    = '1';
       setHideOuterSphere(false);
       setMenuMode(false);
+      setSettingsMode(true);
       cylinderMesh.visible = false;
       {
-        const fovHalf = (camera.fov / 2) * (Math.PI / 180);
-        const aspect  = canvas.clientWidth / canvas.clientHeight;
-        const zH = 10.4 / (Math.tan(fovHalf) * 0.70);  // halfH for 8 lines at size 1.4/LINE_HEIGHT 2.6
-        const zW = 10.0 / (Math.tan(fovHalf) * aspect * 0.70); // estimated halfW for longest line
-        camera.position.set(0, 0, Math.min(Math.max(zH, zW, 12), 90));
+        const creditLines = [
+          'HOLOFRAGMENT',
+          'Magical Mirai 2026',
+          'Adrian Yip  Eason Chou',
+          '',
+          'Three.js  TypeScript  Vite',
+          'TextAlive App API  AIST RecMus',
+          'Hatsune Miku © Crypton Future Media',
+          '',
+          'Answer Me  imie',
+          'After the Curtain  Rulmry',
+          'Shutter Chance  Yamiagari',
+          "The World's Last Music Band",
+          'Natsuyama Yotsugi × Dopamine',
+          'Toritsukulogy  Tsuruzou',
+          'TAKEOVER  Twinfield',
+          '',
+          'Thumbnails  piapro.jp  YouTube',
+        ];
+        const camZ = controls.minDistance;
+        controls.maxDistance = 90;
+        controls.enabled = false;
+        camera.position.set(0, 0, camZ);
         controls.target.set(0, 0, 0);
         controls.update();
+        flushCubemapNow();
+        backBtn.style.display   = 'block';
+        clearAllParticles(); clearLyricMeshes();
+        setFadeRate(0);
+        const fovHalf   = (camera.fov / 2) * (Math.PI / 180);
+        const halfH     = Math.tan(fovHalf) * camZ * 0.55;
+        const textScale = halfH / (creditLines.length * 1.3);
+        displayStaticText(creditLines, textScale);
       }
-      flushCubemapNow();
-      backBtn.style.display   = 'block';
-      clearAllParticles(); clearLyricMeshes();
-      setFadeRate(0);
-      displayStaticText([
-        'HOLOFRAGMENT',
-        '',
-        'Magical Mirai 2026',
-        '',
-        'Adrian Yip',
-        '',
-        'Three.js  TypeScript  Vite',
-        'TextAlive App API',
-      ]);
     },
     (song) => {
       focusedUrl = song.url;
@@ -371,6 +384,15 @@ function triggerBack() {
 
   if (wasUtility === 'settings') { setSettingsMode(false); leaveSettings(camera, controls); }
   else {
+    controls.enabled = true;
+    if (wasUtility === 'credits') {
+      setSettingsMode(false);
+      camera.position.set(0, 0, 58);
+      controls.target.set(0, 0, 0);
+      controls.minDistance = 22;
+      controls.maxDistance = 90;
+      controls.update();
+    }
     clearStaticText(); setFadeRate(0.25);
     if (wasInPlayback) {
       setSongMode(false);

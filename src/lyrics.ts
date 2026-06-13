@@ -244,14 +244,14 @@ export function clearStaticText() {
   staticMeshes = [];
 }
 
-export function displayStaticText(lines: string[]) {
+export function displayStaticText(lines: string[], scale = 1) {
   if (!loadedFont) return;
   clearStaticText();
   const myGen = staticGen;
 
-  const FONT_SIZE   = 1.4;
-  const DEPTH       = 0.28;
-  const LINE_HEIGHT = 2.6;
+  const FONT_SIZE   = 1.4 * scale;
+  const DEPTH       = 0.28 * scale;
+  const LINE_HEIGHT = 2.6 * scale;
 
   const nonEmpty = lines.filter(l => l.trim().length > 0);
   if (nonEmpty.length === 0) return;

@@ -529,10 +529,10 @@ export function enterSettings(
 ): void {
   const font = getFont();
   if (!font) return;
-  if (orbitRef !== null) return;  // already in settings — prevent double-entry
+  if (orbitRef !== null) return;
 
   orbitRef = orbitControls;
-  orbitControls.saveState();  // snapshot camera/target for clean reset on exit
+  orbitControls.saveState();
   orbitControls.enabled = false;
   setFadeRate(0);
 
@@ -688,10 +688,8 @@ export function leaveSettings(
 
   orbitControls.minDistance = 22;
   orbitControls.maxDistance = 90;
-  // Restore camera to its pre-settings state via saveState/reset.
-  // Disable damping so the internal update() call zeros sphericalDelta velocity.
   orbitControls.enableDamping = false;
-  orbitControls.reset();          // restores position0/target0, calls update() internally
+  orbitControls.reset();
   orbitControls.enableDamping = true;
 
   setFadeRate(0.25);
