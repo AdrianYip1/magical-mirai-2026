@@ -8,6 +8,9 @@ export const auroraUniforms = {
   uChorusFactor:  { value: 0.0 },
   uChordTint:     { value: new THREE.Vector3(0, 0, 0) },
   uChordStrength: { value: 0.0 },
+  uMenuReflect:   { value: 0.0 },
+  uMenuTex:       { value: null as THREE.Texture | null },
+  uResolution:    { value: new THREE.Vector2(1, 1) },
 };
 
 export const auroraMesh = new THREE.Mesh(
@@ -28,6 +31,7 @@ auroraMesh.renderOrder = -1;
 
 const chordTintTarget  = new THREE.Vector3(0, 0, 0);
 let   chorusTarget     = 0;
+let   menuReflectTarget = 0;
 
 export function tickAurora(elapsed: number) {
   auroraUniforms.uTime.value = elapsed;
@@ -35,6 +39,20 @@ export function tickAurora(elapsed: number) {
     (chorusTarget - auroraUniforms.uChorusFactor.value) * 0.03;
   auroraUniforms.uChordTint.value.lerp(chordTintTarget, 0.008);
   auroraUniforms.uChordStrength.value *= 0.997;
+  auroraUniforms.uMenuReflect.value +=
+    (menuReflectTarget - auroraUniforms.uMenuReflect.value) * 0.06;
+}
+
+export function setAuroraMenuReflect(on: boolean) {
+  menuReflectTarget = on ? 1 : 0;
+}
+
+export function setAuroraMenuTex(tex: THREE.Texture | null) {
+  auroraUniforms.uMenuTex.value = tex;
+}
+
+export function setAuroraResolution(w: number, h: number) {
+  auroraUniforms.uResolution.value.set(w, h);
 }
 
 export function setAuroraVocalAmp(v: number) {

@@ -4,6 +4,7 @@ import { Player, IPlayerApp, IWord, IPhrase, IBeat, IChar, IChord } from 'textal
 import { canvas, animate, glassInnerUniforms, glassOuterUniforms, renderer, scene, cubeCamera, cubeLargeCamera, triggerBeat, setBeatProgress, setChorusFactor, fireDownbeat, camera, controls, cylinderMesh, flushCubemapNow, setCylinderSegments, setMenuMode, setSettingsMode, setSongMode, setHideOuterSphere, menuState } from './renderer';
 import { setAuroraVocalAmp, setAuroraChorusTarget, setChordTarget } from './aurora';
 import { mountSphereSongSelect, getLastMenuParticles, primeMenuParticles } from './sphereSelect';
+import { initMenuReflect } from './menuReflect';
 import type { WheelItem, DiParticle } from './sphereSelect';
 import type { SongOption } from './songSelect';
 import songs from './songs';
@@ -219,6 +220,7 @@ document.body.appendChild(backBtn);
 
 let selectedSongIndex = songs.length; // tracks which song is active so we return to it
 setCylinderSegments(wheelItems.length);
+initMenuReflect(wheelItems);
 setMenuMode(true);
 // Pre-set the cylinder angle so face 0 isn't visible for one frame before carousel tick fires.
 menuState.cylAngle = -selectedSongIndex * (2 * Math.PI / wheelItems.length);

@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SPHERE_RADIUS, MIN_VERTS, drawSphere } from './sphere';
 import { update as updateParticles, points as particlePoints } from './particles';
-import { auroraMesh, tickAurora } from './aurora';
+import { auroraMesh, tickAurora, setAuroraMenuReflect, setAuroraMenuTex, setAuroraResolution } from './aurora';
+import { menuReflectScene, updateMenuReflect } from './menuReflect';
 import { CUBE_INTERVAL, OUTER_SPHERE } from './perf';
 import { getDetailMode, getSphereSpin, getGlassFx, type DetailMode } from './settings';
 import lyricGlassVert from './shaders/lyric-glass.vert?raw';
@@ -34,6 +35,9 @@ export const renderLargerTarget = new THREE.WebGLRenderTarget(window.innerWidth,
 const renderTargetHalf = new THREE.WebGLRenderTarget(
   Math.ceil(window.innerWidth / 2), Math.ceil(window.innerHeight / 2)
 );
+const menuReflectRT = new THREE.WebGLRenderTarget(
+  Math.ceil(window.innerWidth / 2), Math.ceil(window.innerHeight / 2)
+);
 
 export const scene = new THREE.Scene();
 
@@ -57,6 +61,13 @@ controls.maxAzimuthAngle =  Math.PI * 0.5;
 controls.minPolarAngle   =  Math.PI * 0.2;
 controls.maxPolarAngle   =  Math.PI * 0.8;
 
+const _drawBuf = new THREE.Vector2();
+function syncAuroraResolution() {
+  renderer.getDrawingBufferSize(_drawBuf);
+  setAuroraResolution(_drawBuf.x, _drawBuf.y);
+}
+syncAuroraResolution();
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -64,6 +75,8 @@ window.addEventListener('resize', () => {
   renderTarget.setSize(window.innerWidth, window.innerHeight);
   renderLargerTarget.setSize(window.innerWidth, window.innerHeight);
   renderTargetHalf.setSize(Math.ceil(window.innerWidth / 2), Math.ceil(window.innerHeight / 2));
+  menuReflectRT.setSize(Math.ceil(window.innerWidth / 2), Math.ceil(window.innerHeight / 2));
+  syncAuroraResolution();
 });
 
 export const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256);
@@ -166,6 +179,8 @@ function computeCylHeight(n: number, r: number): number {
 const _initR = computeCylRadius(cylSegments);
 const _initH = computeCylHeight(cylSegments, _initR);
 
+export const cylDims = { r: _initR, h: _initH, n: cylSegments };
+
 export const cylinderMesh = new THREE.Mesh(
   buildCylGeo(cylSegments, _initR, _initH),
   new THREE.ShaderMaterial({
@@ -195,6 +210,7 @@ export function setCylinderSegments(n: number) {
   cylinderMesh.geometry = buildCylGeo(n, r, h);
   old.dispose();
   cylSegments = n;
+  cylDims.r = r; cylDims.h = h; cylDims.n = n;
 }
 
 let menuMode = false;
@@ -359,6 +375,15 @@ export function animate() {
       glassOuterUniforms.uSceneTexture.value = activeRenderTarget.texture;
     }
   }
+
+  if (cylinderMesh.visible) {
+    updateMenuReflect();
+    renderer.setRenderTarget(menuReflectRT);
+    renderer.clear();
+    renderer.render(menuReflectScene, camera);
+    setAuroraMenuTex(menuReflectRT.texture);
+  }
+  setAuroraMenuReflect(cylinderMesh.visible);
 
   if (outerSphereActive && !menuMode && !hideOuterSphere) largerSphereMesh.visible = true;
   auroraMesh.visible = true;
