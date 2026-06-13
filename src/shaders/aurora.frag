@@ -7,6 +7,11 @@ uniform vec3  uChordTint;
 uniform float uChordStrength;
 varying vec3 vWorldPos;
 
+const vec3 MIKU_TEAL = vec3(0.13, 0.86, 0.80);
+const vec3 MIKU_BLUE = vec3(0.16, 0.42, 0.96);
+const vec3 MIKU_PINK = vec3(1.00, 0.33, 0.62);
+const vec3 MIKU_HEM  = vec3(0.62, 1.00, 0.90);
+
 float hash2(vec2 p) {
     p = fract(p * vec2(127.1, 311.7));
     p += dot(p, p + 17.5);
@@ -42,74 +47,101 @@ float fbm(vec2 p) {
 vec3 auroraBand(vec3 dir, float t, float bandY, float seed, vec2 drift) {
     vec2 hPos = dir.xz + drift;
 
-    float wave = sin(hPos.x * 2.1 + t * 1.6 + seed * 2.3) * 0.09
-               + sin(hPos.x * 0.8 + t * 0.9 + seed * 1.1) * 0.05
-               + fbm(hPos * 0.6 + vec2(t * 0.25 + seed, seed * 0.7)) * 0.04;
+    float warp = fbm(hPos * 0.5 + vec2(t * 0.12 + seed, seed * 0.7)) - 0.5;
+
+    float wave = sin(hPos.x * 1.5 + t * 0.55 + seed * 2.3 + warp * 2.5) * 0.10
+               + sin(hPos.x * 0.6 + t * 0.30 + seed * 1.1)              * 0.06
+               + warp * 0.07;
 
     float above = dir.y - (bandY + wave);
+    if (above < -0.08) return vec3(0.0);
 
-    // Halved decay so bands reach higher and overlap — they merge when animated Y drifts close.
-    float curtain = exp(-max(0.0, above) * 1.8)
-                  * smoothstep(-0.08, 0.03, above);
-    if (curtain < 0.002) return vec3(0.0);
+    float body = exp(-max(0.0, above) * 1.6) * smoothstep(-0.07, 0.02, above);
+    float hem  = exp(-max(0.0, above) * 9.0) * smoothstep(-0.045, 0.0, above);
 
-    float rays = noise(vec2(hPos.x * 22.0 + t * 1.2 + seed * 5.0,
-                             above  *  4.0 + t * 0.15 + seed));
-    rays = pow(max(0.0, rays - 0.18) / 0.82, 1.8);
+    float vy   = above * 0.7 - t * 0.5 + seed;
+    float rx   = hPos.x + warp * 0.35;
+    float ray1 = noise(vec2(rx * 16.0 + seed * 5.0, vy));
+    float ray2 = noise(vec2(rx * 38.0 + seed * 9.0, vy * 1.6));
+    float rays = smoothstep(0.40, 0.78, ray1 * 0.65 + ray2 * 0.35);
 
-    float folds = fbm(hPos * 1.4 + vec2(t * 0.22 + seed * 1.3, seed * 0.5));
-    folds = pow(max(0.0, folds - 0.08) / 0.92, 1.1);
+    float knot = smoothstep(0.5, 1.0,
+                            noise(vec2(rx * 4.0 - t * 0.8 + seed, seed * 3.0)));
 
-    float intensity = rays * 0.55 + folds * 0.45;
+    float bodyGlow = body * (0.20 + rays * 0.95 + rays * knot * 0.6);
 
-    float colorShift = sin(uTime * 0.07 + seed * 2.5) * 0.10;
-    float h   = clamp(above / 0.55, 0.0, 1.0);
-    vec3  col = mix(
-        vec3(0.78, 0.04, 0.46),
-        vec3(0.00, 0.82, 0.58),
-        smoothstep(0.0, 0.32 + colorShift, h)
-    );
-    col = mix(col,
-        vec3(0.10, 0.42, 0.90),
-        smoothstep(0.50 + colorShift, 1.0, h)
-    );
+    float h          = clamp(above / 0.6, 0.0, 1.0);
+    float colorShift = sin(uTime * 0.06 + seed * 2.5) * 0.06;
+    vec3  col = mix(MIKU_TEAL, MIKU_BLUE, smoothstep(0.08, 0.52 + colorShift, h));
+    col       = mix(col, MIKU_PINK, smoothstep(0.55 + colorShift, 1.0, h));
 
-    return curtain * intensity * col;
+    return col * bodyGlow + MIKU_HEM * hem * (0.5 + 0.9 * rays);
+}
+
+vec3 auroraSky(vec3 dir, float t) {
+    float y0 = -0.12 + sin(uTime * 0.031)        * 0.13;
+    float y1 =  0.08 + sin(uTime * 0.041 + 1.40) * 0.12;
+    float y2 =  0.28 + sin(uTime * 0.027 + 2.60) * 0.14;
+
+    vec2 drift0 = vec2(sin(uTime * 0.050)        * 0.10,
+                       sin(uTime * 0.038 + 0.50) * 0.08);
+    vec2 drift1 = vec2(uTime                     * 0.010,
+                       sin(uTime * 0.028 + 1.20) * 0.06);
+    vec2 drift2 = vec2(sin(uTime * 0.038 + 1.80) * 0.08,
+                       uTime                     * 0.007);
+
+    vec3 aur = auroraBand(dir, t, y0, 0.0, drift0) * 0.90;
+#if AURORA_BANDS >= 2
+    aur += auroraBand(dir, t, y1, 1.7, drift1) * 0.75;
+#endif
+#if AURORA_BANDS >= 3
+    aur += auroraBand(dir, t, y2, 3.4, drift2) * 0.55;
+#endif
+    return aur * smoothstep(-0.32, 0.06, dir.y);
+}
+
+// Sparse twinkling stars, denser toward the zenith.
+float stars(vec3 dir) {
+    vec2 uv = dir.xz / (abs(dir.y) + 0.35);
+    vec2 g  = floor(uv * 64.0);
+    float h = hash2(g);
+    float s = step(0.992, h);
+    return s * (0.4 + 0.6 * sin(uTime * 1.7 + h * 120.0));
 }
 
 void main() {
     vec3  dir = normalize(vWorldPos);
-    float yy  = dir.y * 0.5 + 0.5;
+    float t   = uTime * 0.09;
+    vec3  col;
 
-    vec3 col = mix(vec3(0.006, 0.010, 0.026),
-                   vec3(0.000, 0.001, 0.008), yy);
+    if (dir.y >= 0.0) {
+        col = mix(vec3(0.010, 0.030, 0.052),
+                  vec3(0.000, 0.002, 0.012), smoothstep(0.0, 0.6, dir.y));
+        col += vec3(0.70, 0.82, 1.00) * stars(dir)
+             * smoothstep(0.06, 0.5, dir.y) * 0.6;
+        col += auroraSky(dir, t);
+        col += MIKU_TEAL * exp(-dir.y * 7.0) * 0.04;
+    } else {
+        // Reflective water: mirror the ray across the horizon, jitter it with
+        // ripples, and sample the same aurora — dimmer and fading with depth.
+        float depth = -dir.y;
+        vec2  rip = vec2(
+            noise(dir.xz * 6.0 + vec2(uTime * 0.20, 0.0)),
+            noise(dir.xz * 6.0 + vec2(0.0, uTime * 0.17))) - 0.5;
+        vec3  rdir = normalize(vec3(dir.x + rip.x * 0.05 * (0.3 + depth),
+                                    -dir.y,
+                                    dir.z + rip.y * 0.05 * (0.3 + depth)));
 
-    float t = uTime * 0.09;
+        vec3  refl  = auroraSky(rdir, t);
+        float fade  = 1.0 - smoothstep(0.0, 0.85, depth);
+        vec3  water = mix(vec3(0.006, 0.020, 0.034),
+                          vec3(0.000, 0.002, 0.010), smoothstep(0.0, 0.7, depth));
 
-    // Each band's base altitude drifts independently on a slow sinusoid so they
-    // drift toward each other (merging into one bright mass) and apart again.
-    // Ranges chosen so all three can coincide briefly near Y ≈ 0.
-    float y0 = -0.50 + sin(uTime * 0.031)           * 0.14;
-    float y1 = -0.25 + sin(uTime * 0.041 + 1.40)    * 0.12;
-    float y2 = -0.05 + sin(uTime * 0.027 + 2.60)    * 0.15;
-
-    vec2 drift0 = vec2(sin(uTime * 0.050)         * 0.10,
-                       sin(uTime * 0.038 + 0.50)  * 0.08);
-    vec2 drift1 = vec2(uTime                      * 0.010,
-                       sin(uTime * 0.028 + 1.20)  * 0.06);
-    vec2 drift2 = vec2(sin(uTime * 0.038 + 1.80)  * 0.08,
-                       uTime                      * 0.007);
-
-    col += auroraBand(dir, t, y0, 0.0, drift0) * 0.90;
-#if AURORA_BANDS >= 2
-    col += auroraBand(dir, t, y1, 1.7, drift1) * 0.75;
-#endif
-#if AURORA_BANDS >= 3
-    col += auroraBand(dir, t, y2, 3.4, drift2) * 0.55;
-#endif
-
-    float floorGlow = pow(max(0.0, -dir.y), 1.5) * 0.09;
-    col += mix(vec3(0.78, 0.04, 0.46), vec3(0.00, 0.82, 0.58), 0.35) * floorGlow;
+        col  = water + refl * fade * 0.55;
+        col += vec3(0.55, 0.95, 1.00) * stars(rdir)
+             * smoothstep(0.02, 0.25, depth) * fade * 0.15;
+        col += MIKU_TEAL * exp(-depth * 8.0) * 0.05;
+    }
 
     gl_FragColor = vec4(col, 1.0);
 }
