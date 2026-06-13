@@ -1,5 +1,6 @@
 uniform samplerCube uEnvMap;
 uniform sampler2D uColorTex;
+uniform float uGlobalAlpha;
 
 varying float vAge;
 varying float vHue;
@@ -35,5 +36,5 @@ void main() {
     }
 
     float age = 1.0 - smoothstep(0.7, 1.0, vAge);
-    gl_FragColor = vec4(finalColor, age);
+    gl_FragColor = vec4(finalColor, age * uGlobalAlpha);
 }

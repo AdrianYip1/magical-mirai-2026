@@ -156,6 +156,7 @@ const renderMaterial = new THREE.ShaderMaterial({
     uColorTex: { value: colorTex },
     uDpr:        { value: Math.min(window.devicePixelRatio || 1, 2) },
     uPointScale: { value: window.innerWidth < window.innerHeight ? 2.0 : 3.0 },
+    uGlobalAlpha:{ value: 1.0 },
   },
 });
 
@@ -163,6 +164,10 @@ export const points = new THREE.Points(geometry, renderMaterial);
 
 export function setFadeRate(rate: number) {
   simMaterial.uniforms.uFadeRate.value = rate;
+}
+
+export function setParticleAlpha(a: number) {
+  renderMaterial.uniforms.uGlobalAlpha.value = a;
 }
 
 export function update(renderer: THREE.WebGLRenderer, elapsed: number, delta: number, beat = 0, envMap?: THREE.Texture) {

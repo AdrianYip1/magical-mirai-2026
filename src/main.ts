@@ -1,7 +1,7 @@
 import './style.css';
 import * as THREE from 'three';
 import { Player, IPlayerApp, IWord, IPhrase, IBeat, IChar, IChord } from 'textalive-app-api';
-import { canvas, animate, glassInnerUniforms, glassOuterUniforms, renderer, scene, cubeCamera, cubeLargeCamera, triggerBeat, setBeatProgress, setChorusFactor, fireDownbeat, camera, controls, cylinderMesh, flushCubemapNow, setCylinderSegments, setMenuMode, setSettingsMode, setSongMode, setHideOuterSphere, menuState } from './renderer';
+import { canvas, animate, glassInnerUniforms, glassOuterUniforms, renderer, scene, cubeCamera, cubeLargeCamera, triggerBeat, setBeatProgress, setChorusFactor, fireDownbeat, camera, controls, cylinderMesh, flushCubemapNow, setCylinderSegments, setCylinderOpacity, setMenuMode, setSettingsMode, setSongMode, setHideOuterSphere, menuState } from './renderer';
 import { setAuroraVocalAmp, setAuroraChorusTarget, setChordTarget } from './aurora';
 import { mountSphereSongSelect, getLastMenuParticles, primeMenuParticles } from './sphereSelect';
 import { initMenuReflect } from './menuReflect';
@@ -9,7 +9,7 @@ import type { WheelItem, DiParticle } from './sphereSelect';
 import type { SongOption } from './songSelect';
 import songs from './songs';
 import { initLyrics, setWord, setChar, clearCurrentWord, clearPhrase, buildLayout, displayStaticText, clearStaticText, clearLyricMeshes, getLayoutHalfExtents, getWordHalfExtentX } from './lyrics';
-import { clearAllParticles, activateWordParticles, setFadeRate, COUNT, points as particlePoints } from './particles';
+import { clearAllParticles, activateWordParticles, setFadeRate, setParticleAlpha, COUNT, points as particlePoints } from './particles';
 import * as previewAudio from './previewAudio';
 import { getVolume } from './volume';
 import { enterSettings, leaveSettings } from './settingsScene';
@@ -422,6 +422,7 @@ function triggerBack() {
   if (menuPtcls.length > 0) {
     const { indices, samples, colors } = buildMenuTargets(menuPtcls);
     activateWordParticles(indices, samples, colors);
+    setParticleAlpha(1);
     particlePoints.visible = true;
   } else {
     particlePoints.visible = false;
@@ -435,23 +436,33 @@ function triggerBack() {
   setTimeout(() => {
     if (backGen !== myGen) return;
     myWheel.reveal();
+    menuState.cylAngle = -selectedSongIndex * (2 * Math.PI / wheelItems.length);
+    setMenuMode(true);
+    setHideOuterSphere(false);
+    setCylinderOpacity(0);
+    cylinderMesh.visible = true;
+    crossfadeToMenu(myGen);
   }, 500);
-  setTimeout(() => {
-    if (backGen !== myGen) return;
-    canvas.style.transition = 'opacity 0.5s';
-    canvas.style.opacity = '0';
-    clearAllParticles();
-    particlePoints.visible = false;
-    setTimeout(() => {
-      if (backGen !== myGen) return;
-      menuState.cylAngle = -selectedSongIndex * (2 * Math.PI / wheelItems.length);
-      setMenuMode(true);
-      setHideOuterSphere(false);
-      cylinderMesh.visible = true;
-      canvas.style.transition = 'opacity 0.5s';
-      canvas.style.opacity = '1';
-    }, 520);
-  }, 700);
+}
+
+function crossfadeToMenu(gen: number) {
+  const DURATION = 700;
+  const TARGET_OPACITY = 0.7;
+  const start = performance.now();
+  function step(now: number) {
+    if (backGen !== gen) return;
+    const k = Math.min((now - start) / DURATION, 1);
+    setCylinderOpacity(TARGET_OPACITY * k * k * k);
+    setParticleAlpha(Math.max(0, 1 - k * 5.0));
+    if (k < 1) {
+      requestAnimationFrame(step);
+    } else {
+      clearAllParticles();
+      particlePoints.visible = false;
+      setParticleAlpha(1);
+    }
+  }
+  requestAnimationFrame(step);
 }
 
 function buildMenuTargets(menuParticles: DiParticle[]): { indices: Uint32Array; samples: Float32Array; colors: Float32Array } {
@@ -582,27 +593,20 @@ function showIntro() {
     if (menuPtcls.length > 0) {
       const { indices, samples, colors } = buildMenuTargets(menuPtcls);
       activateWordParticles(indices, samples, colors);
+      setParticleAlpha(1);
     }
 
     setTimeout(() => {
       if (backGen !== myGen) return;
       wheel.reveal();
-    }, 500);
-
-    setTimeout(() => {
-      if (backGen !== myGen) return;
-      canvas.style.transition = 'opacity 0.5s';
-      canvas.style.opacity = '0';
-      clearAllParticles();
-      particlePoints.visible = false;
+      menuState.cylAngle = -selectedSongIndex * (2 * Math.PI / wheelItems.length);
+      setMenuMode(true);
+      setHideOuterSphere(false);
       setFadeRate(0.25);
-      setTimeout(() => {
-        if (backGen !== myGen) return;
-        cylinderMesh.visible = true;
-        canvas.style.transition = 'opacity 0.5s';
-        canvas.style.opacity = '1';
-      }, 520);
-    }, 700);
+      setCylinderOpacity(0);
+      cylinderMesh.visible = true;
+      crossfadeToMenu(myGen);
+    }, 500);
   }, 2800);
 }
 

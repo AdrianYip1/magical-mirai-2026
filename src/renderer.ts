@@ -213,6 +213,10 @@ export function setCylinderSegments(n: number) {
   cylDims.r = r; cylDims.h = h; cylDims.n = n;
 }
 
+export function setCylinderOpacity(v: number) {
+  (cylinderMesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = v;
+}
+
 let menuMode = false;
 /** True while the main carousel menu is shown — hides the glass sphere so only the cylinder shows. */
 export function setMenuMode(active: boolean) { menuMode = active; }

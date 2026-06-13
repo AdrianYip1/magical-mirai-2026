@@ -109,7 +109,6 @@ float distToSeg(vec2 p, vec2 a, vec2 b) {
     return length(pa - ba * h);
 }
 
-// One grid layer of soft point stars. thresh: per-cell presence cutoff.
 vec3 starLayer(vec2 uv, float cells, float thresh, float seed) {
     vec2 p    = uv * cells;
     vec2 cell = floor(p);
@@ -120,10 +119,10 @@ vec3 starLayer(vec2 uv, float cells, float thresh, float seed) {
 
     vec2  pos = clamp(vec2(hash2(cell + seed + 11.3),
                            hash2(cell + seed + 27.7)), 0.15, 0.85);
-    float mag = pow(hash2(cell + seed + 41.1), 2.0);   // few bright, many faint
+    float mag = pow(hash2(cell + seed + 41.1), 2.0);
     float tw  = hash2(cell + seed + 5.9);
 
-    float radius = mix(0.09, 0.26, mag);                // brighter = larger
+    float radius = mix(0.09, 0.26, mag);
     float d      = length(f - pos);
     float core   = pow(smoothstep(radius, 0.0, d), 2.0);
 
@@ -138,7 +137,6 @@ vec3 starLayer(vec2 uv, float cells, float thresh, float seed) {
     return tint * (mag * core * twk);
 }
 
-// Drifting starfield + a tilted milky-way band.
 vec3 starField(vec3 dir) {
     vec2 uv = dir.xz / (abs(dir.y) + 0.35);
 
@@ -164,12 +162,11 @@ vec3 starField(vec3 dir) {
     return col;
 }
 
-// Occasional meteor streaks. One candidate window every PERIOD seconds.
 float shootingStars(vec2 uv) {
     const float PERIOD = 7.0;
     float idx = floor(uTime / PERIOD);
     float lt  = fract(uTime / PERIOD);
-    if (hash2(vec2(idx, 1.7)) < 0.5) return 0.0;        // ~half the windows spawn one
+    if (hash2(vec2(idx, 1.7)) < 0.5) return 0.0;
 
     vec2  start = (vec2(hash2(vec2(idx, 9.1)), hash2(vec2(idx, 4.3))) - 0.5) * 3.0;
     float ang   = hash2(vec2(idx, 6.6)) * 6.2831;
