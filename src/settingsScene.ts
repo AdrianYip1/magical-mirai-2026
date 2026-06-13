@@ -19,22 +19,22 @@ const BAR_BOTTOM = -0.46 * FONT_SCALE;
 const BAR_TOP    = -0.14 * FONT_SCALE;
 const BAR_WIDTH  = BAR_RIGHT  - BAR_LEFT;
 const BAR_HEIGHT = BAR_TOP    - BAR_BOTTOM;
-const LABEL_Y    =  0.42 * FONT_SCALE;
-const LABEL_SIZE =  0.72 * FONT_SCALE;
+const LABEL_Y    =  0.50 * FONT_SCALE;
+const LABEL_SIZE =  0.95 * FONT_SCALE;
 
-const LANG_SECTION_Y    = -1.20 * FONT_SCALE;
-const LANG_SECTION_SIZE =  0.72 * FONT_SCALE;
-const LANG_CHIP_Y       = -2.00 * FONT_SCALE;
+const LANG_SECTION_Y    = -1.30 * FONT_SCALE;
+const LANG_SECTION_SIZE =  0.95 * FONT_SCALE;
+const LANG_CHIP_Y       = -2.20 * FONT_SCALE;
 const LANG_CHIP_SIZE    =  0.65 * FONT_SCALE;
 
-const DETAIL_SECTION_Y    = -3.00 * FONT_SCALE;
-const DETAIL_SECTION_SIZE =  0.72 * FONT_SCALE;
-const DETAIL_CHIP_Y       = -3.80 * FONT_SCALE;
+const DETAIL_SECTION_Y    = -3.20 * FONT_SCALE;
+const DETAIL_SECTION_SIZE =  0.95 * FONT_SCALE;
+const DETAIL_CHIP_Y       = -4.10 * FONT_SCALE;
 const DETAIL_CHIP_SIZE    =  0.65 * FONT_SCALE;
 
-const SPIN_SECTION_Y    = -4.80 * FONT_SCALE;
-const SPIN_SECTION_SIZE =  0.72 * FONT_SCALE;
-const SPIN_CHIP_Y       = -5.60 * FONT_SCALE;
+const SPIN_SECTION_Y    = -5.10 * FONT_SCALE;
+const SPIN_SECTION_SIZE =  0.95 * FONT_SCALE;
+const SPIN_CHIP_Y       = -6.00 * FONT_SCALE;
 const SPIN_CHIP_SIZE    =  0.65 * FONT_SCALE;
 
 const CONTENT_TOP    = LABEL_Y       + LABEL_SIZE       * 0.6;
@@ -125,10 +125,6 @@ let spinChipOverlay: HTMLDivElement | null = null;
 let langChipW = 400, langChipH = 120;
 let detailChipW = 300, detailChipH = 120;
 let spinChipW = 300, spinChipH = 120;
-
-let savedCamPos:  THREE.Vector3    | null = null;
-let savedCamQuat: THREE.Quaternion | null = null;
-let savedTarget:  THREE.Vector3    | null = null;
 
 let orbitRef:  OrbitControls  | null = null;
 let overlayEl: HTMLDivElement | null = null;
@@ -354,7 +350,7 @@ function rebuildLabelMesh(font: NonNullable<ReturnType<typeof getFont>>) {
 
   const text = getLanguage() === 'ja' ? '音量' : 'VOLUME';
   labelGeo = new TextGeometry(text, {
-    font, size: LABEL_SIZE, depth: 0.27, curveSegments: 4,
+    font, size: LABEL_SIZE, depth: 0.35, curveSegments: 4,
   });
   labelGeo.computeBoundingBox();
   const bb = labelGeo.boundingBox!;
@@ -373,7 +369,7 @@ function rebuildLangSectionMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   if (langSectionGeo)  { langSectionGeo.dispose(); langSectionGeo = null; }
 
   const text = getLanguage() === 'ja' ? '言語' : 'LANGUAGES';
-  langSectionGeo = new TextGeometry(text, { font, size: LANG_SECTION_SIZE, depth: 0.12, curveSegments: 4 });
+  langSectionGeo = new TextGeometry(text, { font, size: LANG_SECTION_SIZE, depth: 0.30, curveSegments: 4 });
   langSectionGeo.computeBoundingBox();
   const bb = langSectionGeo.boundingBox!;
   langSectionGeo.translate(
@@ -409,7 +405,7 @@ function rebuildDetailSectionMesh(font: NonNullable<ReturnType<typeof getFont>>)
   if (detailSectionGeo)  { detailSectionGeo.dispose(); detailSectionGeo = null; }
 
   const text = getLanguage() === 'ja' ? '品質' : 'DETAIL';
-  detailSectionGeo = new TextGeometry(text, { font, size: DETAIL_SECTION_SIZE, depth: 0.12, curveSegments: 4 });
+  detailSectionGeo = new TextGeometry(text, { font, size: DETAIL_SECTION_SIZE, depth: 0.30, curveSegments: 4 });
   detailSectionGeo.computeBoundingBox();
   const bb = detailSectionGeo.boundingBox!;
   detailSectionGeo.translate(
@@ -447,7 +443,7 @@ function rebuildSpinSectionMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   if (spinSectionGeo)  { spinSectionGeo.dispose(); spinSectionGeo = null; }
 
   const text = getLanguage() === 'ja' ? '回転' : 'ROTATION';
-  spinSectionGeo = new TextGeometry(text, { font, size: SPIN_SECTION_SIZE, depth: 0.12, curveSegments: 4 });
+  spinSectionGeo = new TextGeometry(text, { font, size: SPIN_SECTION_SIZE, depth: 0.30, curveSegments: 4 });
   spinSectionGeo.computeBoundingBox();
   const bb = spinSectionGeo.boundingBox!;
   spinSectionGeo.translate(
@@ -533,14 +529,12 @@ export function enterSettings(
 ): void {
   const font = getFont();
   if (!font) return;
+  if (orbitRef !== null) return;  // already in settings — prevent double-entry
 
   orbitRef = orbitControls;
+  orbitControls.saveState();  // snapshot camera/target for clean reset on exit
   orbitControls.enabled = false;
   setFadeRate(0);
-
-  savedCamPos  = camera.position.clone();
-  savedCamQuat = camera.quaternion.clone();
-  savedTarget  = orbitControls.target.clone();
 
   const fovHalf = (camera.fov / 2) * (Math.PI / 180);
   const aspect  = canvasEl.clientWidth / canvasEl.clientHeight;
@@ -637,7 +631,7 @@ export function enterSettings(
 }
 
 export function leaveSettings(
-  camera: THREE.PerspectiveCamera,
+  _camera: THREE.PerspectiveCamera,
   orbitControls: OrbitControls,
 ): void {
   cancelAnimationFrame(scrollRaf);
@@ -692,13 +686,13 @@ export function leaveSettings(
   clearParticles(spinHeadIndices);
   clearParticles(spinChipIndices);
 
-  if (savedCamPos && savedCamQuat && savedTarget) {
-    camera.position.copy(savedCamPos);
-    camera.quaternion.copy(savedCamQuat);
-    orbitControls.target.copy(savedTarget);
-    orbitControls.update();
-    savedCamPos = savedCamQuat = savedTarget = null;
-  }
+  orbitControls.minDistance = 22;
+  orbitControls.maxDistance = 90;
+  // Restore camera to its pre-settings state via saveState/reset.
+  // Disable damping so the internal update() call zeros sphericalDelta velocity.
+  orbitControls.enableDamping = false;
+  orbitControls.reset();          // restores position0/target0, calls update() internally
+  orbitControls.enableDamping = true;
 
   setFadeRate(0.25);
   if (orbitRef) { orbitRef.enabled = true; orbitRef = null; }
