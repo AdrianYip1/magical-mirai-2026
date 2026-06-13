@@ -42,7 +42,6 @@ void main() {
     vec3 viewDir   = normalize(uCameraPos - vWorldPos);
     vec3 fragDir   = normalize(vWorldPos);
 
-    // Downbeat ripple: expanding ring perturbs the reflection normal.
     vec3 perturbedNormal = rawNormal;
     for (int i = 0; i < 4; i++) {
         float age = uTime - uRippleTime[i];
@@ -86,11 +85,11 @@ void main() {
     }
 
     vec3  reflectDir   = reflect(-viewDir, faceNormal);
-    float reflBoost    = mix(1.0, 1.6, uDetailLevel);
+    float reflBoost    = mix(1.0, 1.15, uDetailLevel);
     vec3  reflectColour = textureCube(uEnvMap, reflectDir).rgb * reflBoost;
 
     float cosTheta = abs(dot(faceNormal, viewDir));
-    float F0   = mix(0.15, 0.32, uDetailLevel);
+    float F0   = mix(0.12, 0.22, uDetailLevel);
     float fres = fresnel(cosTheta, F0);
 
     vec3  combinedColour;
@@ -109,10 +108,9 @@ void main() {
         alpha = rawAlpha * mix(edgeFloor, 1.0, edgeFade);
     }
 
-    // Rim glow: teal on verse, shifts toward cool white during chorus.
     float rim    = pow(1.0 - cosTheta, 2.5);
     vec3  rimCol = mix(vec3(0.20, 0.80, 0.90), vec3(0.70, 0.88, 1.00), uChorusFactor);
-    combinedColour += rimCol * rim * beatPulse * 2.2;
+    combinedColour += rimCol * rim * beatPulse * 1.54;
 
     gl_FragColor = vec4(combinedColour, alpha);
 }

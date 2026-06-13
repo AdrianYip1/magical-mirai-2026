@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Player, IPlayerApp, IWord, IPhrase, IBeat, IChar, IChord } from 'textalive-app-api';
 import { canvas, animate, glassInnerUniforms, glassOuterUniforms, renderer, scene, cubeCamera, cubeLargeCamera, triggerBeat, setBeatProgress, setChorusFactor, fireDownbeat, camera, controls, cylinderMesh, flushCubemapNow, setCylinderSegments, setMenuMode, setSettingsMode, setSongMode, setHideOuterSphere, menuState } from './renderer';
 import { setAuroraVocalAmp, setAuroraChorusTarget, setChordTarget } from './aurora';
-import { mountSphereSongSelect, getLastMenuParticles } from './sphereSelect';
+import { mountSphereSongSelect, getLastMenuParticles, primeMenuParticles } from './sphereSelect';
 import type { WheelItem, DiParticle } from './sphereSelect';
 import type { SongOption } from './songSelect';
 import songs from './songs';
@@ -203,6 +203,7 @@ function computeSongCameraZ(): number {
 const OUTSIDE_SPHERE_SONGS = new Set([
   'https://piapro.jp/t/6W2N/20251215164617', // Answer Me
   'https://piapro.jp/t/PNpQ/20251209170719', // Shutter Chance
+  'https://piapro.jp/t/QBdL/20251215094303', // Toritsukulogy
 ]);
 
 function effectiveSongCameraZ(url: string): number {
@@ -221,9 +222,9 @@ setCylinderSegments(wheelItems.length);
 setMenuMode(true);
 // Pre-set the cylinder angle so face 0 isn't visible for one frame before carousel tick fires.
 menuState.cylAngle = -selectedSongIndex * (2 * Math.PI / wheelItems.length);
-cylinderMesh.visible = true;
+cylinderMesh.visible = false;
 particlePoints.visible = false;
-let wheel = remountMenu(songs.length);
+let wheel = remountMenu(songs.length, true);
 
 function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typeof mountSphereSongSelect> {
   const m = mountSphereSongSelect(
@@ -237,6 +238,7 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       clearAllParticles(); clearLyricMeshes();
       currentWord = currentChar = currentPhrase = null;
       awaitingSeek = true;
+      songEndFired = false;
       inPlayback = true;
       selectedSongIndex = songs.findIndex(s => s.url === song.url);
       if (selectedSongIndex < 0) selectedSongIndex = songs.length;
@@ -500,6 +502,7 @@ function buildMenuTargets(menuParticles: DiParticle[]): { indices: Uint32Array; 
   return { indices, samples, colors };
 }
 
+let songEndFired = false;
 let currentWord:   IWord   | null = null;
 let currentChar:   IChar   | null = null;
 let currentPhrase: IPhrase | null = null;
@@ -534,16 +537,84 @@ function chordToRgb(name: string): [number, number, number] {
   return [hue2rgb(p, q, h + 1/3), hue2rgb(p, q, h), hue2rgb(p, q, h - 1/3)];
 }
 
- initLyrics(() => {
-    fontReady = true;
-    ensureMeshes();
+let introShown = false;
+
+function showIntro() {
+  if (introShown) return;
+  introShown = true;
+
+  const scanlines = document.createElement('div');
+  Object.assign(scanlines.style, {
+    position:    'fixed',
+    inset:       '0',
+    pointerEvents: 'none',
+    zIndex:      '5',
+    background:  'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.18) 2px,rgba(0,0,0,0.18) 4px)',
+    opacity:     '0',
+    transition:  'opacity 0.4s',
   });
+  document.body.appendChild(scanlines);
+  requestAnimationFrame(() => { scanlines.style.opacity = '1'; });
+
+  const introLines = ['HOLOFRAGMENT', '初音ミク', 'Magical Mirai 2026'];
+  const fovHalf   = (camera.fov / 2) * (Math.PI / 180);
+  const halfH     = Math.tan(fovHalf) * 58;
+  const textScale = (halfH * 0.55) / (introLines.length * 2.6);
+
+  particlePoints.visible = true;
+  setFadeRate(0);
+
+  setTimeout(() => { displayStaticText(introLines, textScale); }, 300);
+
+  const myGen = ++backGen;
+  setTimeout(() => {
+    if (backGen !== myGen) return;
+
+    scanlines.style.transition = 'opacity 0.5s';
+    scanlines.style.opacity = '0';
+    setTimeout(() => scanlines.remove(), 600);
+
+    clearStaticText();
+
+    const menuPtcls = primeMenuParticles();
+    if (menuPtcls.length > 0) {
+      const { indices, samples, colors } = buildMenuTargets(menuPtcls);
+      activateWordParticles(indices, samples, colors);
+    }
+
+    setTimeout(() => {
+      if (backGen !== myGen) return;
+      wheel.reveal();
+    }, 500);
+
+    setTimeout(() => {
+      if (backGen !== myGen) return;
+      canvas.style.transition = 'opacity 0.5s';
+      canvas.style.opacity = '0';
+      clearAllParticles();
+      particlePoints.visible = false;
+      setFadeRate(0.25);
+      setTimeout(() => {
+        if (backGen !== myGen) return;
+        cylinderMesh.visible = true;
+        canvas.style.transition = 'opacity 0.5s';
+        canvas.style.opacity = '1';
+      }, 520);
+    }, 700);
+  }, 2800);
+}
+
+initLyrics(() => {
+  fontReady = true;
+  ensureMeshes();
+  showIntro();
+});
 
 player.addListener({
   onAppReady(_app: IPlayerApp) {},
 
   onStop() {
-    if (inPlayback) setTimeout(() => { if (inPlayback) triggerBack(); }, 2500);
+    if (inPlayback) setTimeout(() => { if (inPlayback) triggerBack(); }, 2000);
   },
 
   onVideoReady() {
@@ -569,6 +640,12 @@ player.addListener({
 
   onTimeUpdate(position: number) {
     if (!player.video) return;
+
+    if (inPlayback && !songEndFired && player.video.duration > 0
+        && position >= player.video.duration - 300) {
+      songEndFired = true;
+      setTimeout(() => { if (inPlayback) triggerBack(); }, 2000);
+    }
 
     const chorus   = player.findChorus(position);
     const inChorus = !!chorus;

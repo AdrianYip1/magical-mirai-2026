@@ -4,7 +4,7 @@ import { SPHERE_RADIUS, MIN_VERTS, drawSphere } from './sphere';
 import { update as updateParticles, points as particlePoints } from './particles';
 import { auroraMesh, tickAurora } from './aurora';
 import { CUBE_INTERVAL, OUTER_SPHERE } from './perf';
-import { getDetailMode, getSphereSpin, type DetailMode } from './settings';
+import { getDetailMode, getSphereSpin, getGlassFx, type DetailMode } from './settings';
 import lyricGlassVert from './shaders/lyric-glass.vert?raw';
 import lyricGlassFrag from './shaders/lyric-glass.frag?raw';
 
@@ -134,7 +134,6 @@ scene.add(auroraMesh);
 
 scene.add(particlePoints);
 
-// Glass cylinder — visible only in main menu, tracks carousel spin angle via menuState.cylAngle.
 // Segment count = number of carousel panels so each flat face aligns with one card.
 export const menuState = { cylAngle: 0 };
 
@@ -234,6 +233,7 @@ let rippleIdx    = 0;
 let chorusTarget = 0;
 
 export function setBeatProgress(v: number) {
+  if (getGlassFx() === 'off') return;
   sharedGlassUniforms.uBeatProgress.value = v;
 }
 
@@ -242,6 +242,7 @@ export function setChorusFactor(v: number) {
 }
 
 export function fireDownbeat(strength: number, dir: THREE.Vector3) {
+  if (getGlassFx() === 'off') return;
   const slot = rippleIdx % 4;
   rippleIdx++;
   sharedGlassUniforms.uRippleTime.value[slot]     = elapsed;

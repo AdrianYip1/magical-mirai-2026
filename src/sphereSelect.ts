@@ -232,6 +232,11 @@ export interface DiParticle { x: number; y: number; r: number; g: number; b: num
 let lastMenuParticles: DiParticle[] = [];
 export function getLastMenuParticles(): DiParticle[] { return lastMenuParticles; }
 
+export function primeMenuParticles(): DiParticle[] {
+  lastMenuParticles = captureMenuParticles(_cardEls);
+  return lastMenuParticles;
+}
+
 function hexToRgb(hex: string): [number, number, number] {
   const m = hex.match(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
   return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [80, 80, 80];

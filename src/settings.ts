@@ -40,3 +40,18 @@ export function setSphereSpin(v: SphereSpin): void {
   _spin = v;
   try { localStorage.setItem(SPIN_KEY, v); } catch { /* private mode */ }
 }
+
+const GLASS_FX_KEY = 'holofragment.glass_fx';
+export type GlassFx = 'on' | 'off';
+
+let _glassFx: GlassFx = (() => {
+  const saved = localStorage.getItem(GLASS_FX_KEY);
+  return saved === 'off' ? 'off' : 'on';
+})();
+
+export const getGlassFx = (): GlassFx => _glassFx;
+
+export function setGlassFx(v: GlassFx): void {
+  _glassFx = v;
+  try { localStorage.setItem(GLASS_FX_KEY, v); } catch { /* private mode */ }
+}

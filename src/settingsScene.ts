@@ -5,7 +5,7 @@ import { activateWordParticles, clearParticles, setFadeRate, COUNT } from './par
 import { sampleSurface, getFont } from './lyrics';
 import { setVolume, getVolume } from './volume';
 import { getLanguage, setLanguage } from './language';
-import { getDetailMode, setDetailMode, getSphereSpin, setSphereSpin } from './settings';
+import { getDetailMode, setDetailMode, getSphereSpin, setSphereSpin, getGlassFx, setGlassFx } from './settings';
 import { scene, glassInnerUniforms, applyDetailMode, flushCubemapNow } from './renderer';
 import lyricGlassVert from './shaders/lyric-glass.vert?raw';
 import lyricGlassFrag from './shaders/lyric-glass.frag?raw';
@@ -37,8 +37,13 @@ const SPIN_SECTION_SIZE =  0.95 * FONT_SCALE;
 const SPIN_CHIP_Y       = -6.00 * FONT_SCALE;
 const SPIN_CHIP_SIZE    =  0.65 * FONT_SCALE;
 
-const CONTENT_TOP    = LABEL_Y       + LABEL_SIZE       * 0.6;
-const CONTENT_BOTTOM = SPIN_CHIP_Y   - SPIN_CHIP_SIZE   * 0.6;
+const GLASS_SECTION_Y    = -7.10 * FONT_SCALE;
+const GLASS_SECTION_SIZE =  0.95 * FONT_SCALE;
+const GLASS_CHIP_Y       = -8.00 * FONT_SCALE;
+const GLASS_CHIP_SIZE    =  0.65 * FONT_SCALE;
+
+const CONTENT_TOP    = LABEL_Y        + LABEL_SIZE        * 0.6;
+const CONTENT_BOTTOM = GLASS_CHIP_Y   - GLASS_CHIP_SIZE   * 0.6;
 const CONTENT_MID_Y  = (CONTENT_TOP + CONTENT_BOTTOM) / 2;
 const CONTENT_HALF_H = (CONTENT_TOP - CONTENT_BOTTOM) / 2;
 const LAYOUT_HALF_W  = 2.5 * FONT_SCALE;
@@ -47,20 +52,24 @@ const SCALE         = COUNT / 65536;
 const LABEL_COUNT   = Math.round(10_000 * SCALE);
 const OUTLINE_COUNT = Math.round( 2_500 * SCALE);
 const FILL_COUNT    = Math.round( 6_500 * SCALE);
-const LANG_HEAD_COUNT = Math.round(10_000 * SCALE);
-const LANG_CHIP_COUNT = Math.round( 8_000 * SCALE);
+const LANG_HEAD_COUNT = Math.round( 7_000 * SCALE);
+const LANG_CHIP_COUNT = Math.round( 6_000 * SCALE);
 
-const DETAIL_HEAD_COUNT = Math.round( 8_000 * SCALE);
-const DETAIL_CHIP_COUNT = Math.round( 6_000 * SCALE);
-const SPIN_HEAD_COUNT   = Math.round( 8_000 * SCALE);
-const SPIN_CHIP_COUNT   = Math.round( 6_000 * SCALE);
+const DETAIL_HEAD_COUNT = Math.round( 6_000 * SCALE);
+const DETAIL_CHIP_COUNT = Math.round( 5_000 * SCALE);
+const SPIN_HEAD_COUNT   = Math.round( 6_000 * SCALE);
+const SPIN_CHIP_COUNT   = Math.round( 5_000 * SCALE);
+const GLASS_HEAD_COUNT  = Math.round( 7_000 * SCALE);
+const GLASS_CHIP_COUNT  = Math.round( 4_000 * SCALE);
 
 const LANG_HEAD_BASE   = LABEL_COUNT + OUTLINE_COUNT + FILL_COUNT;
-const LANG_CHIP_BASE   = LANG_HEAD_BASE + LANG_HEAD_COUNT;
-const DETAIL_HEAD_BASE = LANG_CHIP_BASE + LANG_CHIP_COUNT;
+const LANG_CHIP_BASE   = LANG_HEAD_BASE  + LANG_HEAD_COUNT;
+const DETAIL_HEAD_BASE = LANG_CHIP_BASE  + LANG_CHIP_COUNT;
 const DETAIL_CHIP_BASE = DETAIL_HEAD_BASE + DETAIL_HEAD_COUNT;
 const SPIN_HEAD_BASE   = DETAIL_CHIP_BASE + DETAIL_CHIP_COUNT;
 const SPIN_CHIP_BASE   = SPIN_HEAD_BASE   + SPIN_HEAD_COUNT;
+const GLASS_HEAD_BASE  = SPIN_CHIP_BASE   + SPIN_CHIP_COUNT;
+const GLASS_CHIP_BASE  = GLASS_HEAD_BASE  + GLASS_HEAD_COUNT;
 
 const labelIndices      = new Uint32Array(LABEL_COUNT);
 const outlineIndices    = new Uint32Array(OUTLINE_COUNT);
@@ -71,6 +80,8 @@ const detailHeadIndices = new Uint32Array(DETAIL_HEAD_COUNT);
 const detailChipIndices = new Uint32Array(DETAIL_CHIP_COUNT);
 const spinHeadIndices   = new Uint32Array(SPIN_HEAD_COUNT);
 const spinChipIndices   = new Uint32Array(SPIN_CHIP_COUNT);
+const glassHeadIndices  = new Uint32Array(GLASS_HEAD_COUNT);
+const glassChipIndices  = new Uint32Array(GLASS_CHIP_COUNT);
 for (let i = 0; i < LABEL_COUNT;       i++) labelIndices[i]      = i;
 for (let i = 0; i < OUTLINE_COUNT;     i++) outlineIndices[i]    = LABEL_COUNT + i;
 for (let i = 0; i < FILL_COUNT;        i++) fillIndices[i]       = LABEL_COUNT + OUTLINE_COUNT + i;
@@ -80,6 +91,8 @@ for (let i = 0; i < DETAIL_HEAD_COUNT; i++) detailHeadIndices[i] = DETAIL_HEAD_B
 for (let i = 0; i < DETAIL_CHIP_COUNT; i++) detailChipIndices[i] = DETAIL_CHIP_BASE + i;
 for (let i = 0; i < SPIN_HEAD_COUNT;   i++) spinHeadIndices[i]   = SPIN_HEAD_BASE + i;
 for (let i = 0; i < SPIN_CHIP_COUNT;   i++) spinChipIndices[i]   = SPIN_CHIP_BASE + i;
+for (let i = 0; i < GLASS_HEAD_COUNT;  i++) glassHeadIndices[i]  = GLASS_HEAD_BASE + i;
+for (let i = 0; i < GLASS_CHIP_COUNT;  i++) glassChipIndices[i]  = GLASS_CHIP_BASE + i;
 
 function makeGlassMat(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
@@ -122,9 +135,16 @@ let spinChipGeo:     THREE.BufferGeometry | null = null;
 let spinChipMesh:    THREE.Mesh | null = null;
 let spinChipOverlay: HTMLDivElement | null = null;
 
+let glassFxSectionGeo:  THREE.BufferGeometry | null = null;
+let glassFxSectionMesh: THREE.Mesh | null = null;
+let glassFxChipGeo:     THREE.BufferGeometry | null = null;
+let glassFxChipMesh:    THREE.Mesh | null = null;
+let glassFxChipOverlay: HTMLDivElement | null = null;
+
 let langChipW = 400, langChipH = 120;
 let detailChipW = 300, detailChipH = 120;
 let spinChipW = 300, spinChipH = 120;
+let glassFxChipW = 300, glassFxChipH = 120;
 
 let orbitRef:  OrbitControls  | null = null;
 let overlayEl: HTMLDivElement | null = null;
@@ -132,7 +152,6 @@ let isDragging = false;
 let barScreenL = 0;
 let barScreenW = 1;
 
-// ---- Vertical scroll state ----
 let scrollTargetY     = 0;
 let scrollCurrentY    = 0;
 let scrollMin         = 0;
@@ -171,9 +190,10 @@ function updateOverlayPositions(cam: THREE.PerspectiveCamera, cvs: HTMLCanvasEle
     el.style.width  = `${W}px`;
     el.style.height = `${H}px`;
   };
-  moveChip(langChipOverlay,   LANG_CHIP_Y,   langChipW,   langChipH);
-  moveChip(detailChipOverlay, DETAIL_CHIP_Y, detailChipW, detailChipH);
-  moveChip(spinChipOverlay,   SPIN_CHIP_Y,   spinChipW,   spinChipH);
+  moveChip(langChipOverlay,    LANG_CHIP_Y,   langChipW,    langChipH);
+  moveChip(detailChipOverlay,  DETAIL_CHIP_Y, detailChipW,  detailChipH);
+  moveChip(spinChipOverlay,    SPIN_CHIP_Y,   spinChipW,    spinChipH);
+  moveChip(glassFxChipOverlay, GLASS_CHIP_Y,  glassFxChipW, glassFxChipH);
 }
 
 function computeChipOverlaySize(
@@ -210,10 +230,11 @@ function onScrollWheel(e: WheelEvent) {
 }
 
 function onScrollPointerDown(e: PointerEvent) {
-  if (overlayEl?.contains(e.target as Node))         return;
-  if (langChipOverlay?.contains(e.target as Node))   return;
-  if (detailChipOverlay?.contains(e.target as Node)) return;
-  if (spinChipOverlay?.contains(e.target as Node))   return;
+  if (overlayEl?.contains(e.target as Node))          return;
+  if (langChipOverlay?.contains(e.target as Node))    return;
+  if (detailChipOverlay?.contains(e.target as Node))  return;
+  if (spinChipOverlay?.contains(e.target as Node))    return;
+  if (glassFxChipOverlay?.contains(e.target as Node)) return;
   scrollDragActive      = true;
   scrollDragStartPx     = e.clientY;
   scrollDragStartTarget = scrollTargetY;
@@ -476,6 +497,67 @@ function rebuildSpinChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   scene.add(spinChipMesh);
 }
 
+function rebuildGlassFxSectionMesh(font: NonNullable<ReturnType<typeof getFont>>) {
+  if (glassFxSectionMesh) { scene.remove(glassFxSectionMesh); (glassFxSectionMesh.material as THREE.ShaderMaterial).dispose(); glassFxSectionMesh = null; }
+  if (glassFxSectionGeo)  { glassFxSectionGeo.dispose(); glassFxSectionGeo = null; }
+
+  const text = getLanguage() === 'ja' ? 'ガラスFX' : 'GLASS FX';
+  glassFxSectionGeo = new TextGeometry(text, { font, size: GLASS_SECTION_SIZE, depth: 0.30, curveSegments: 4 });
+  glassFxSectionGeo.computeBoundingBox();
+  const bb = glassFxSectionGeo.boundingBox!;
+  glassFxSectionGeo.translate(
+    -(bb.min.x + bb.max.x) / 2,
+    -(bb.min.y + bb.max.y) / 2 + GLASS_SECTION_Y,
+    0,
+  );
+  activateWordParticles(glassHeadIndices, sampleSurface(glassFxSectionGeo, GLASS_HEAD_COUNT));
+  glassFxSectionMesh = new THREE.Mesh(glassFxSectionGeo, makeGlassMat());
+  scene.add(glassFxSectionMesh);
+}
+
+function rebuildGlassFxChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
+  if (glassFxChipMesh) { scene.remove(glassFxChipMesh); (glassFxChipMesh.material as THREE.ShaderMaterial).dispose(); glassFxChipMesh = null; }
+  if (glassFxChipGeo)  { glassFxChipGeo.dispose(); glassFxChipGeo = null; }
+
+  const text = getLanguage() === 'ja'
+    ? (getGlassFx() === 'on' ? 'オン' : 'オフ')
+    : (getGlassFx() === 'on' ? 'ON' : 'OFF');
+  glassFxChipGeo = new TextGeometry(text, { font, size: GLASS_CHIP_SIZE, depth: 0.15, curveSegments: 4 });
+  glassFxChipGeo.computeBoundingBox();
+  const bb = glassFxChipGeo.boundingBox!;
+  glassFxChipGeo.translate(
+    -(bb.min.x + bb.max.x) / 2,
+    -(bb.min.y + bb.max.y) / 2 + GLASS_CHIP_Y,
+    -(bb.min.z + bb.max.z) / 2,
+  );
+  activateWordParticles(glassChipIndices, sampleSurface(glassFxChipGeo, GLASS_CHIP_COUNT));
+  glassFxChipMesh = new THREE.Mesh(glassFxChipGeo, makeGlassMat());
+  scene.add(glassFxChipMesh);
+}
+
+function setupGlassFxChipOverlay(
+  camera: THREE.Camera,
+  canvasEl: HTMLCanvasElement,
+  W: number, H: number,
+  onToggle: () => void,
+) {
+  const pos = worldToScreen(0, GLASS_CHIP_Y, camera, canvasEl);
+
+  glassFxChipOverlay = document.createElement('div');
+  Object.assign(glassFxChipOverlay.style, {
+    position:    'fixed',
+    cursor:      'pointer',
+    zIndex:      '10001',
+    touchAction: 'none',
+    left:        `${pos.x - W / 2}px`,
+    top:         `${pos.y - H / 2}px`,
+    width:       `${W}px`,
+    height:      `${H}px`,
+  });
+  document.body.appendChild(glassFxChipOverlay);
+  glassFxChipOverlay.addEventListener('pointerdown', (e) => { e.stopPropagation(); onToggle(); });
+}
+
 function setupDetailChipOverlay(
   camera: THREE.Camera,
   canvasEl: HTMLCanvasElement,
@@ -542,7 +624,6 @@ export function enterSettings(
   const zForW   = LAYOUT_HALF_W  / (Math.tan(fovHalf) * aspect) * 0.85;
   const z = Math.max(zForH, zForW, 1.5);
 
-  // Compute scroll bounds: if content overflows the viewport, allow panning.
   const viewHalfH = Math.tan(fovHalf) * z;
   if (viewHalfH >= CONTENT_HALF_H) {
     scrollMin = scrollMax = CONTENT_MID_Y;
@@ -552,7 +633,6 @@ export function enterSettings(
   }
   scrollTargetY  = scrollMax;
   scrollCurrentY = scrollMax;
-  // world units per screen pixel (for drag/wheel conversion)
   scrollWorldPerPx = (viewHalfH * 2) / canvasEl.clientHeight;
 
   camera.position.set(0, scrollCurrentY, z);
@@ -584,10 +664,13 @@ export function enterSettings(
   rebuildDetailChipMesh(font);
   rebuildSpinSectionMesh(font);
   rebuildSpinChipMesh(font);
+  rebuildGlassFxSectionMesh(font);
+  rebuildGlassFxChipMesh(font);
 
-  ({ W: langChipW,   H: langChipH   } = computeChipOverlaySize(langChipGeo,   LANG_CHIP_Y,   camera, canvasEl));
-  ({ W: detailChipW, H: detailChipH } = computeChipOverlaySize(detailChipGeo, DETAIL_CHIP_Y, camera, canvasEl));
-  ({ W: spinChipW,   H: spinChipH   } = computeChipOverlaySize(spinChipGeo,   SPIN_CHIP_Y,   camera, canvasEl));
+  ({ W: langChipW,    H: langChipH    } = computeChipOverlaySize(langChipGeo,    LANG_CHIP_Y,   camera, canvasEl));
+  ({ W: detailChipW,  H: detailChipH  } = computeChipOverlaySize(detailChipGeo,  DETAIL_CHIP_Y, camera, canvasEl));
+  ({ W: spinChipW,    H: spinChipH    } = computeChipOverlaySize(spinChipGeo,    SPIN_CHIP_Y,   camera, canvasEl));
+  ({ W: glassFxChipW, H: glassFxChipH } = computeChipOverlaySize(glassFxChipGeo, GLASS_CHIP_Y,  camera, canvasEl));
 
   setupOverlay(camera, canvasEl);
   setupChipOverlay(camera, canvasEl, langChipW, langChipH, () => {
@@ -601,10 +684,13 @@ export function enterSettings(
     rebuildDetailChipMesh(f);
     rebuildSpinSectionMesh(f);
     rebuildSpinChipMesh(f);
+    rebuildGlassFxSectionMesh(f);
+    rebuildGlassFxChipMesh(f);
     if (scrollCam && scrollCanvas) {
-      ({ W: langChipW,   H: langChipH   } = computeChipOverlaySize(langChipGeo,   LANG_CHIP_Y,   scrollCam, scrollCanvas));
-      ({ W: detailChipW, H: detailChipH } = computeChipOverlaySize(detailChipGeo, DETAIL_CHIP_Y, scrollCam, scrollCanvas));
-      ({ W: spinChipW,   H: spinChipH   } = computeChipOverlaySize(spinChipGeo,   SPIN_CHIP_Y,   scrollCam, scrollCanvas));
+      ({ W: langChipW,    H: langChipH    } = computeChipOverlaySize(langChipGeo,    LANG_CHIP_Y,   scrollCam, scrollCanvas));
+      ({ W: detailChipW,  H: detailChipH  } = computeChipOverlaySize(detailChipGeo,  DETAIL_CHIP_Y, scrollCam, scrollCanvas));
+      ({ W: spinChipW,    H: spinChipH    } = computeChipOverlaySize(spinChipGeo,    SPIN_CHIP_Y,   scrollCam, scrollCanvas));
+      ({ W: glassFxChipW, H: glassFxChipH } = computeChipOverlaySize(glassFxChipGeo, GLASS_CHIP_Y,  scrollCam, scrollCanvas));
     }
   });
   setupDetailChipOverlay(camera, canvasEl, detailChipW, detailChipH, () => {
@@ -626,6 +712,16 @@ export function enterSettings(
     rebuildSpinChipMesh(f);
     if (scrollCam && scrollCanvas) {
       ({ W: spinChipW, H: spinChipH } = computeChipOverlaySize(spinChipGeo, SPIN_CHIP_Y, scrollCam, scrollCanvas));
+    }
+  });
+  setupGlassFxChipOverlay(camera, canvasEl, glassFxChipW, glassFxChipH, () => {
+    const f = getFont();
+    if (!f) return;
+    const next = getGlassFx() === 'on' ? 'off' : 'on';
+    setGlassFx(next);
+    rebuildGlassFxChipMesh(f);
+    if (scrollCam && scrollCanvas) {
+      ({ W: glassFxChipW, H: glassFxChipH } = computeChipOverlaySize(glassFxChipGeo, GLASS_CHIP_Y, scrollCam, scrollCanvas));
     }
   });
 }
@@ -656,6 +752,7 @@ export function leaveSettings(
   if (langChipOverlay)    { langChipOverlay.remove();    langChipOverlay = null; }
   if (detailChipOverlay)  { detailChipOverlay.remove();  detailChipOverlay = null; }
   if (spinChipOverlay)    { spinChipOverlay.remove();    spinChipOverlay = null; }
+  if (glassFxChipOverlay) { glassFxChipOverlay.remove(); glassFxChipOverlay = null; }
 
   isDragging    = false;
   fillSamples   = null;
@@ -675,6 +772,10 @@ export function leaveSettings(
   if (spinSectionGeo)     { spinSectionGeo.dispose();     spinSectionGeo     = null; }
   if (spinChipMesh)       { scene.remove(spinChipMesh);       (spinChipMesh.material       as THREE.ShaderMaterial).dispose(); spinChipMesh       = null; }
   if (spinChipGeo)        { spinChipGeo.dispose();        spinChipGeo        = null; }
+  if (glassFxSectionMesh) { scene.remove(glassFxSectionMesh); (glassFxSectionMesh.material as THREE.ShaderMaterial).dispose(); glassFxSectionMesh = null; }
+  if (glassFxSectionGeo)  { glassFxSectionGeo.dispose();  glassFxSectionGeo  = null; }
+  if (glassFxChipMesh)    { scene.remove(glassFxChipMesh);    (glassFxChipMesh.material    as THREE.ShaderMaterial).dispose(); glassFxChipMesh    = null; }
+  if (glassFxChipGeo)     { glassFxChipGeo.dispose();     glassFxChipGeo     = null; }
 
   clearParticles(labelIndices);
   clearParticles(outlineIndices);
@@ -685,6 +786,8 @@ export function leaveSettings(
   clearParticles(detailChipIndices);
   clearParticles(spinHeadIndices);
   clearParticles(spinChipIndices);
+  clearParticles(glassHeadIndices);
+  clearParticles(glassChipIndices);
 
   orbitControls.minDistance = 22;
   orbitControls.maxDistance = 90;

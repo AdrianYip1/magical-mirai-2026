@@ -153,6 +153,7 @@ function makeCharMaterial(): THREE.ShaderMaterial {
       uCameraPos:     glassInnerUniforms.uCameraPos,
       uEnvMap:        glassInnerUniforms.uEnvMap,
       uBeatIntensity: glassInnerUniforms.uBeatIntensity,
+      uTime:          glassInnerUniforms.uTime,
       uOpacity:       { value: 0.0 },
       uFill:          { value: 1.0 },
     },

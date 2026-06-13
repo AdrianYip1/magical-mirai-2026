@@ -42,32 +42,26 @@ float fbm(vec2 p) {
 vec3 auroraBand(vec3 dir, float t, float bandY, float seed, vec2 drift) {
     vec2 hPos = dir.xz + drift;
 
-    // Bottom hem: two sinusoids at different frequencies + small FBM nudge.
     float wave = sin(hPos.x * 2.1 + t * 1.6 + seed * 2.3) * 0.09
                + sin(hPos.x * 0.8 + t * 0.9 + seed * 1.1) * 0.05
                + fbm(hPos * 0.6 + vec2(t * 0.25 + seed, seed * 0.7)) * 0.04;
 
     float above = dir.y - (bandY + wave);
 
-    // Taller curtain envelope: halved decay so each band reaches higher and
-    // overlaps its neighbours — they merge when their animated Y drifts close.
+    // Halved decay so bands reach higher and overlap — they merge when animated Y drifts close.
     float curtain = exp(-max(0.0, above) * 1.8)
                   * smoothstep(-0.08, 0.03, above);
     if (curtain < 0.002) return vec3(0.0);
 
-    // Vertical ray striations: anisotropic noise — narrow columns flowing sideways.
     float rays = noise(vec2(hPos.x * 22.0 + t * 1.2 + seed * 5.0,
                              above  *  4.0 + t * 0.15 + seed));
     rays = pow(max(0.0, rays - 0.18) / 0.82, 1.8);
 
-    // Large-scale curtain folds: slower billows that give volume.
     float folds = fbm(hPos * 1.4 + vec2(t * 0.22 + seed * 1.3, seed * 0.5));
     folds = pow(max(0.0, folds - 0.08) / 0.92, 1.1);
 
     float intensity = rays * 0.55 + folds * 0.45;
 
-    // Color: magenta-pink fringe → teal-green body → ice-blue top.
-    // colorShift slowly breathes the boundary heights up and down.
     float colorShift = sin(uTime * 0.07 + seed * 2.5) * 0.10;
     float h   = clamp(above / 0.55, 0.0, 1.0);
     vec3  col = mix(
@@ -87,7 +81,6 @@ void main() {
     vec3  dir = normalize(vWorldPos);
     float yy  = dir.y * 0.5 + 0.5;
 
-    // Night sky: dark navy at horizon, near-black at zenith.
     vec3 col = mix(vec3(0.006, 0.010, 0.026),
                    vec3(0.000, 0.001, 0.008), yy);
 
@@ -100,7 +93,6 @@ void main() {
     float y1 = -0.25 + sin(uTime * 0.041 + 1.40)    * 0.12;
     float y2 = -0.05 + sin(uTime * 0.027 + 2.60)    * 0.15;
 
-    // 2-D drift: X for left/right sweep, Z for front/back flow.
     vec2 drift0 = vec2(sin(uTime * 0.050)         * 0.10,
                        sin(uTime * 0.038 + 0.50)  * 0.08);
     vec2 drift1 = vec2(uTime                      * 0.010,
@@ -116,7 +108,6 @@ void main() {
     col += auroraBand(dir, t, y2, 3.4, drift2) * 0.55;
 #endif
 
-    // Reflected floor glow — aurora colours pooling below the carousel
     float floorGlow = pow(max(0.0, -dir.y), 1.5) * 0.09;
     col += mix(vec3(0.78, 0.04, 0.46), vec3(0.00, 0.82, 0.58), 0.35) * floorGlow;
 
