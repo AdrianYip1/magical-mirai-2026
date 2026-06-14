@@ -567,7 +567,7 @@ export function settingsCameraZ(camera: THREE.PerspectiveCamera, canvasEl: HTMLC
   const aspect  = canvasEl.clientWidth / canvasEl.clientHeight;
   const zForH   = CONTENT_HALF_H / (Math.tan(fovHalf) * 0.4165);
   const zForW   = LAYOUT_HALF_W  / (Math.tan(fovHalf) * aspect * 0.4165);
-  return Math.max(zForH, zForW, 1.5);
+  return Math.max(zForH, zForW, 23);
 }
 
 export function settingsCameraY(camera: THREE.PerspectiveCamera, canvasEl: HTMLCanvasElement): number {

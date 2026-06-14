@@ -355,7 +355,7 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
           '',
           'Thumbnails  piapro.jp  YouTube',
         ];
-        const camZ = controls.minDistance;
+        const camZ = 23;
         controls.maxDistance = 90;
         controls.enabled = false;
         flushCubemapNow();
