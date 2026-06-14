@@ -1,7 +1,7 @@
 import './style.css';
 import * as THREE from 'three';
 import { Player, IPlayerApp, IWord, IPhrase, IBeat, IChar, IChord } from 'textalive-app-api';
-import { canvas, animate, glassInnerUniforms, glassOuterUniforms, renderer, scene, cubeCamera, cubeLargeCamera, triggerBeat, setBeatProgress, setChorusFactor, fireDownbeat, camera, controls, cylinderMesh, flushCubemapNow, setCylinderSegments, setCylinderOpacity, setMenuMode, setSettingsMode, setSongMode, setHideOuterSphere, menuState } from './renderer';
+import { canvas, animate, glassInnerUniforms, glassOuterUniforms, renderer, scene, cubeCamera, cubeLargeCamera, triggerBeat, setBeatProgress, setChorusFactor, fireDownbeat, camera, controls, cylinderMesh, flushCubemapNow, setCylinderSegments, setCylinderOpacity, setMenuMode, setSettingsMode, setSongMode, setHideOuterSphere, setOuterSphereFade, menuState } from './renderer';
 import { setAuroraVocalAmp, setAuroraChorusTarget, setChordTarget } from './aurora';
 import { mountSphereSongSelect, getLastMenuParticles, primeMenuParticles } from './sphereSelect';
 import { initMenuReflect } from './menuReflect';
@@ -286,6 +286,7 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       canvas.style.opacity    = '1';
       setHideOuterSphere(false);
       setMenuMode(false);
+      setOuterSphereFade(1);
       setSongMode(true);
       cylinderMesh.visible = false;
       particlePoints.visible = true;
@@ -309,6 +310,7 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       canvas.style.opacity    = '1';
       setHideOuterSphere(false);
       setMenuMode(false);
+      setOuterSphereFade(1);
       setSettingsMode(true);
       cylinderMesh.visible = false;
       particlePoints.visible = true;
@@ -330,6 +332,7 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       canvas.style.opacity    = '1';
       setHideOuterSphere(false);
       setMenuMode(false);
+      setOuterSphereFade(1);
       setSettingsMode(true);
       cylinderMesh.visible = false;
       {
@@ -424,41 +427,31 @@ function triggerBack() {
   currentWord = currentChar = currentPhrase = null;
   desired = null; // cancel any queued load callback so the song doesn't start after going back
 
-  setHideOuterSphere(true);
+  const flyFromPos    = camera.position.clone();
+  const flyFromTarget = controls.target.clone();
 
   if (wasUtility === 'settings') {
     setSettingsMode(false);
     leaveSettings(camera, controls);
-    controls.enabled = true;
-    camera.position.set(0, 0, 58);
-    controls.target.set(0, 0, 0);
-    controls.minDistance = 22;
-    controls.maxDistance = 90;
-    controls.update();
-  }
-  else {
-    controls.enabled = true;
-    if (wasUtility === 'credits') {
-      setSettingsMode(false);
-      camera.position.set(0, 0, 58);
-      controls.target.set(0, 0, 0);
-      controls.minDistance = 22;
-      controls.maxDistance = 90;
-      controls.update();
-    }
+  } else {
+    if (wasUtility === 'credits') setSettingsMode(false);
     clearStaticText(); setFadeRate(0.25);
     if (wasInPlayback) {
       setSongMode(false);
       cancelAnimationFrame(wordCameraZRaf);
       wordCameraZRaf    = 0;
       wordCameraZTarget = 58;
-      camera.position.set(0, 0, 58);
-      controls.target.set(0, 0, 0);
-      controls.minDistance = 22;
-      controls.maxDistance = 90;
-      controls.update();
     }
   }
+
+  controls.enabled     = false;
+  controls.minDistance = 22;
+  controls.maxDistance = 90;
+
+  camera.position.set(0, 0, 58);
+  controls.target.set(0, 0, 0);
+  camera.lookAt(controls.target);
+  camera.updateMatrixWorld(true);
 
   const prevWheel = wheel;
   prevWheel.abortDisintegration();
@@ -479,36 +472,53 @@ function triggerBack() {
   const myWheel = wheel;
   const myGen   = ++backGen;
 
+  menuState.cylAngle = -selectedSongIndex * (2 * Math.PI / wheelItems.length);
+  setHideOuterSphere(false);
+  setCylinderOpacity(0);
+  cylinderMesh.visible = true;
+
+  const FLY_MS    = 2000;
+  const REVEAL_MS = 700;
+
+  camera.position.copy(flyFromPos);
+  controls.target.copy(flyFromTarget);
+  flyCamera(0, 58, 0, FLY_MS, () => {
+    controls.enabled = true;
+    controls.update();
+  });
+  crossfadeToMenu(myGen, FLY_MS);
+
   setTimeout(() => {
     if (backGen !== myGen) return;
     myWheel.reveal();
-    menuState.cylAngle = -selectedSongIndex * (2 * Math.PI / wheelItems.length);
-    setMenuMode(true);
-    setHideOuterSphere(false);
-    setCylinderOpacity(0);
-    cylinderMesh.visible = true;
-    crossfadeToMenu(myGen);
-  }, 500);
+  }, FLY_MS - REVEAL_MS);
 }
 
-function crossfadeToMenu(gen: number) {
-  const DURATION = 700;
+function crossfadeToMenu(gen: number, duration = 700) {
   const TARGET_OPACITY = 0.7;
   const start = performance.now();
   function step(now: number) {
     if (backGen !== gen) return;
-    const k = Math.min((now - start) / DURATION, 1);
-    setCylinderOpacity(TARGET_OPACITY * k * k * k);
-    setParticleAlpha(Math.max(0, 1 - k * 5.0));
+    const k = Math.min((now - start) / duration, 1);
+    setCylinderOpacity(TARGET_OPACITY * k * k);
+    setParticleAlpha(Math.max(0, 1 - k * 1.4));
+    setOuterSphereFade(1 - smoothstep(0.55, 1.0, k));
     if (k < 1) {
       requestAnimationFrame(step);
     } else {
       clearAllParticles();
       particlePoints.visible = false;
       setParticleAlpha(1);
+      setMenuMode(true);
+      setOuterSphereFade(1);
     }
   }
   requestAnimationFrame(step);
+}
+
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.min(Math.max((x - edge0) / (edge1 - edge0), 0), 1);
+  return t * t * (3 - 2 * t);
 }
 
 function buildMenuTargets(menuParticles: DiParticle[]): { indices: Uint32Array; samples: Float32Array; colors: Float32Array } {

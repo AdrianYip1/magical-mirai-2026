@@ -5,6 +5,7 @@ uniform samplerCube uEnvMap;
 uniform sampler2D uSceneTexture;
 uniform float uRadius;
 uniform float uDetailLevel;
+uniform float uFade;
 uniform float uBeatProgress;
 uniform float uChorusFactor;
 uniform float uTime;
@@ -112,5 +113,5 @@ void main() {
     vec3  rimCol = mix(vec3(0.20, 0.80, 0.90), vec3(0.70, 0.88, 1.00), uChorusFactor);
     combinedColour += rimCol * rim * beatPulse * 1.54;
 
-    gl_FragColor = vec4(combinedColour, alpha);
+    gl_FragColor = vec4(combinedColour, alpha * uFade);
 }

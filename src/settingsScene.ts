@@ -565,15 +565,16 @@ function setupSpinChipOverlay(
 export function settingsCameraZ(camera: THREE.PerspectiveCamera, canvasEl: HTMLCanvasElement): number {
   const fovHalf = (camera.fov / 2) * (Math.PI / 180);
   const aspect  = canvasEl.clientWidth / canvasEl.clientHeight;
-  const zForH   = CONTENT_HALF_H / (Math.tan(fovHalf) * 0.85);
-  const zForW   = LAYOUT_HALF_W  / (Math.tan(fovHalf) * aspect * 0.85);
+  const zForH   = CONTENT_HALF_H / (Math.tan(fovHalf) * 0.4165);
+  const zForW   = LAYOUT_HALF_W  / (Math.tan(fovHalf) * aspect * 0.4165);
   return Math.max(zForH, zForW, 1.5);
 }
 
 export function settingsCameraY(camera: THREE.PerspectiveCamera, canvasEl: HTMLCanvasElement): number {
   const fovHalf   = (camera.fov / 2) * (Math.PI / 180);
   const viewHalfH = Math.tan(fovHalf) * settingsCameraZ(camera, canvasEl);
-  return viewHalfH >= CONTENT_HALF_H ? CONTENT_MID_Y : CONTENT_TOP - viewHalfH;
+  const base = viewHalfH >= CONTENT_HALF_H ? CONTENT_MID_Y : CONTENT_TOP - viewHalfH;
+  return base - 1.0;
 }
 
 export function enterSettings(
