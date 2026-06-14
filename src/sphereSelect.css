@@ -51,24 +51,11 @@
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--c) 25%, transparent);
   background: #03080f;
   cursor: pointer;
   opacity: 0;
   box-shadow: 0 4px 28px rgba(0, 0, 0, 0.8);
-  transition: border-color 0.25s, box-shadow 0.25s;
   overflow: hidden;
-}
-
-.sss-card:hover {
-  border-color: color-mix(in srgb, var(--c) 55%, transparent);
-}
-
-.sss-card--active {
-  border-color: color-mix(in srgb, var(--c) 85%, transparent);
-  box-shadow:
-    0 0 36px color-mix(in srgb, var(--c) 40%, transparent),
-    0 4px 28px rgba(0, 0, 0, 0.8);
 }
 
 /* Song card — full-bleed background image + canvas */

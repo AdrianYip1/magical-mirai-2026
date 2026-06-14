@@ -152,21 +152,9 @@ let isDragging = false;
 let barScreenL = 0;
 let barScreenW = 1;
 
-let scrollTargetY     = 0;
-let scrollCurrentY    = 0;
-let scrollMin         = 0;
-let scrollMax         = 0;
-let scrollWorldPerPx  = 0;
-let scrollRaf         = 0;
-let scrollDragActive  = false;
-let scrollDragStartPx = 0;
-let scrollDragStartTarget = 0;
+let overlayRaf    = 0;
 let scrollCam:    THREE.PerspectiveCamera | null = null;
 let scrollCanvas: HTMLCanvasElement       | null = null;
-
-function clampScroll(y: number): number {
-  return Math.max(scrollMin, Math.min(scrollMax, y));
-}
 
 function updateOverlayPositions(cam: THREE.PerspectiveCamera, cvs: HTMLCanvasElement) {
   if (overlayEl) {
@@ -213,41 +201,11 @@ function computeChipOverlaySize(
   };
 }
 
-function scrollRafTick() {
-  if (!scrollCam || !orbitRef || !scrollCanvas) return;
-  scrollCurrentY += (scrollTargetY - scrollCurrentY) * 0.12;
-  scrollCam.position.y = scrollCurrentY;
-  orbitRef.target.y    = scrollCurrentY;
-  orbitRef.update();
+function syncOverlaysTick() {
+  if (!scrollCam || !scrollCanvas) return;
   scrollCam.updateMatrixWorld(true);
   updateOverlayPositions(scrollCam, scrollCanvas);
-  scrollRaf = requestAnimationFrame(scrollRafTick);
-}
-
-function onScrollWheel(e: WheelEvent) {
-  e.preventDefault();
-  scrollTargetY = clampScroll(scrollTargetY - e.deltaY * scrollWorldPerPx * 0.3);
-}
-
-function onScrollPointerDown(e: PointerEvent) {
-  if (overlayEl?.contains(e.target as Node))          return;
-  if (langChipOverlay?.contains(e.target as Node))    return;
-  if (detailChipOverlay?.contains(e.target as Node))  return;
-  if (spinChipOverlay?.contains(e.target as Node))    return;
-  if (glassFxChipOverlay?.contains(e.target as Node)) return;
-  scrollDragActive      = true;
-  scrollDragStartPx     = e.clientY;
-  scrollDragStartTarget = scrollTargetY;
-}
-
-function onScrollPointerMove(e: PointerEvent) {
-  if (!scrollDragActive) return;
-  const dy = e.clientY - scrollDragStartPx;
-  scrollTargetY = clampScroll(scrollDragStartTarget + dy * scrollWorldPerPx);
-}
-
-function onScrollPointerUp() {
-  scrollDragActive = false;
+  overlayRaf = requestAnimationFrame(syncOverlaysTick);
 }
 
 function sampleOutline(): Float32Array {
@@ -604,6 +562,20 @@ function setupSpinChipOverlay(
   spinChipOverlay.addEventListener('pointerdown', (e) => { e.stopPropagation(); onToggle(); });
 }
 
+export function settingsCameraZ(camera: THREE.PerspectiveCamera, canvasEl: HTMLCanvasElement): number {
+  const fovHalf = (camera.fov / 2) * (Math.PI / 180);
+  const aspect  = canvasEl.clientWidth / canvasEl.clientHeight;
+  const zForH   = CONTENT_HALF_H / (Math.tan(fovHalf) * 0.85);
+  const zForW   = LAYOUT_HALF_W  / (Math.tan(fovHalf) * aspect * 0.85);
+  return Math.max(zForH, zForW, 1.5);
+}
+
+export function settingsCameraY(camera: THREE.PerspectiveCamera, canvasEl: HTMLCanvasElement): number {
+  const fovHalf   = (camera.fov / 2) * (Math.PI / 180);
+  const viewHalfH = Math.tan(fovHalf) * settingsCameraZ(camera, canvasEl);
+  return viewHalfH >= CONTENT_HALF_H ? CONTENT_MID_Y : CONTENT_TOP - viewHalfH;
+}
+
 export function enterSettings(
   camera: THREE.PerspectiveCamera,
   canvasEl: HTMLCanvasElement,
@@ -618,37 +590,19 @@ export function enterSettings(
   orbitControls.enabled = false;
   setFadeRate(0);
 
-  const fovHalf = (camera.fov / 2) * (Math.PI / 180);
-  const aspect  = canvasEl.clientWidth / canvasEl.clientHeight;
-  const zForH   = CONTENT_HALF_H / Math.tan(fovHalf) * 0.85;
-  const zForW   = LAYOUT_HALF_W  / (Math.tan(fovHalf) * aspect) * 0.85;
-  const z = Math.max(zForH, zForW, 1.5);
+  const z    = settingsCameraZ(camera, canvasEl);
+  const camY = settingsCameraY(camera, canvasEl);
 
-  const viewHalfH = Math.tan(fovHalf) * z;
-  if (viewHalfH >= CONTENT_HALF_H) {
-    scrollMin = scrollMax = CONTENT_MID_Y;
-  } else {
-    scrollMax = CONTENT_TOP    - viewHalfH;
-    scrollMin = CONTENT_BOTTOM + viewHalfH;
-  }
-  scrollTargetY  = scrollMax;
-  scrollCurrentY = scrollMax;
-  scrollWorldPerPx = (viewHalfH * 2) / canvasEl.clientHeight;
-
-  camera.position.set(0, scrollCurrentY, z);
+  camera.position.set(0, camY, z);
   camera.quaternion.identity();
-  orbitControls.target.set(0, scrollCurrentY, 0);
+  orbitControls.target.set(0, camY, 0);
   orbitControls.update();
   camera.updateProjectionMatrix();
   camera.updateMatrixWorld(true);
 
   scrollCam    = camera;
   scrollCanvas = canvasEl;
-  canvasEl.addEventListener('wheel', onScrollWheel, { passive: false });
-  window.addEventListener('pointerdown', onScrollPointerDown);
-  window.addEventListener('pointermove', onScrollPointerMove);
-  window.addEventListener('pointerup',   onScrollPointerUp);
-  scrollRaf = requestAnimationFrame(scrollRafTick);
+  overlayRaf = requestAnimationFrame(syncOverlaysTick);
 
   rebuildLabelMesh(font);
 
@@ -730,15 +684,8 @@ export function leaveSettings(
   _camera: THREE.PerspectiveCamera,
   orbitControls: OrbitControls,
 ): void {
-  cancelAnimationFrame(scrollRaf);
-  scrollRaf = 0;
-  if (scrollCanvas) {
-    scrollCanvas.removeEventListener('wheel', onScrollWheel);
-  }
-  window.removeEventListener('pointerdown', onScrollPointerDown);
-  window.removeEventListener('pointermove', onScrollPointerMove);
-  window.removeEventListener('pointerup',   onScrollPointerUp);
-  scrollDragActive = false;
+  cancelAnimationFrame(overlayRaf);
+  overlayRaf = 0;
   scrollCam = scrollCanvas = null;
 
   if (overlayEl) {

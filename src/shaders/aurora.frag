@@ -179,6 +179,29 @@ float shootingStars(vec2 uv) {
     return smoothstep(0.015, 0.0, d) * life * life;
 }
 
+vec2 rippleDisturb(vec2 uv, out float glow) {
+    vec2 disp = vec2(0.0);
+    glow = 0.0;
+    for (int i = 0; i < 3; i++) {
+        float seed = float(i) * 37.3;
+        float phase = uTime / 4.0 + float(i) * 0.37;
+        float idx = floor(phase);
+        float lt  = fract(phase);
+        vec2  c   = (vec2(hash2(vec2(idx, seed)),
+                          hash2(vec2(idx, seed + 11.0))) - 0.5) * 3.0;
+        vec2  rd  = uv - c;
+        float d   = length(rd);
+        float front  = d - lt * 2.2;
+        float packet = sin(front * 28.0) * exp(-front * front * 22.0);
+        disp += (rd / (d + 1e-4)) * packet * sin(lt * 3.14159);
+
+        float impact = exp(-d * d * 130.0) * exp(-lt * 16.0);
+        float crest  = exp(-front * front * 34.0) * (1.0 - lt);
+        glow += impact + crest * 0.5;
+    }
+    return disp;
+}
+
 void main() {
     vec3  dir = normalize(vWorldPos);
     float t   = uTime * 0.09;
@@ -204,9 +227,15 @@ void main() {
                            (n2 - 0.5) * 1.8 + (n3 - 0.5) * 0.6);
         float amp   = 0.035 + depth * 0.16;
 
-        vec3 rdir = normalize(vec3(dir.x + slope.x * amp,
+        vec2  rip   = vec2(0.0);
+        float splash = 0.0;
+#if !LOW_QUALITY
+        rip = rippleDisturb(dir.xz / (depth + 0.35), splash);
+#endif
+
+        vec3 rdir = normalize(vec3(dir.x + slope.x * amp + rip.x * 0.06,
                                    -dir.y + abs(slope.y) * amp * 0.7,
-                                   dir.z + slope.x * amp));
+                                   dir.z + slope.x * amp + rip.y * 0.06));
 
         vec3  refl = auroraSky(rdir, t);
 
@@ -228,13 +257,15 @@ void main() {
         float glint = pow(max(0.0, n1 * n2 * 1.3), 9.0);
         col += vec3(0.75, 1.0, 1.0) * glint * fres * 0.6;
 
+        col += vec3(0.80, 0.95, 1.00) * splash * (0.35 + 0.65 * fade) * 0.8;
+
         if (uMenuReflect > 0.001) {
             const float MENU_PERSP = 1.6;
             vec2  suv = gl_FragCoord.xy / uResolution;
             float b   = 0.5 - suv.y;
             float persp = 1.0 + max(0.0, b) * MENU_PERSP;
             vec2  muv = vec2(0.5 + (suv.x - 0.5) / persp, 1.0 - suv.y);
-            muv += slope * 0.025 * (0.3 + depth);
+            muv += (slope * 0.025 + rip * 0.03) * (0.3 + depth);
             vec3 menu = texture2D(uMenuTex, clamp(muv, 0.0, 1.0)).rgb;
             col += menu * vec3(0.42, 0.58, 0.66) * uMenuReflect * fade * 0.45;
         }

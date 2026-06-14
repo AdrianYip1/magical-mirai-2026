@@ -12,7 +12,7 @@ import { initLyrics, setWord, setChar, clearCurrentWord, clearPhrase, buildLayou
 import { clearAllParticles, activateWordParticles, setFadeRate, setParticleAlpha, COUNT, points as particlePoints } from './particles';
 import * as previewAudio from './previewAudio';
 import { getVolume } from './volume';
-import { enterSettings, leaveSettings } from './settingsScene';
+import { enterSettings, leaveSettings, settingsCameraZ, settingsCameraY } from './settingsScene';
 
 // TextAlive's loaders occasionally reject internally (e.g. a lyric diff fetch
 // returns null) in a promise we can't reach from our awaited createFromSongUrl.
@@ -112,8 +112,7 @@ function ensureMeshes() {
   buildLayout(player.video.phrases);
   meshesBuiltUrl = focusedUrl;
   if (inPlayback) {
-    camera.position.set(0, 0, effectiveSongCameraZ(focusedUrl));
-    controls.update();
+    setFlyTargetZ(effectiveSongCameraZ(focusedUrl));
   }
 }
 
@@ -175,7 +174,44 @@ function tickWordCameraZ() {
 
 function setWordCameraZ(z: number) {
   wordCameraZTarget = z;
+  if (flyRaf) return;
   if (!wordCameraZRaf) wordCameraZRaf = requestAnimationFrame(tickWordCameraZ);
+}
+
+let flyRaf = 0;
+let flyGen = 0;
+const flyTo       = new THREE.Vector3();
+const flyLookAt   = new THREE.Vector3();
+const flyFromPos  = new THREE.Vector3();
+const flyFromLook = new THREE.Vector3();
+
+function flyCamera(toY: number, toZ: number, lookY: number, durationMs: number, onArrive?: () => void) {
+  cancelAnimationFrame(flyRaf);
+  cancelAnimationFrame(wordCameraZRaf); wordCameraZRaf = 0;
+  const gen = ++flyGen;
+  flyTo.set(0, toY, toZ);
+  flyLookAt.set(0, lookY, 0);
+  flyFromPos.copy(camera.position);
+  flyFromLook.copy(controls.target);
+  const start = performance.now();
+  function step(now: number) {
+    if (flyGen !== gen) return;
+    const k = Math.min((now - start) / durationMs, 1);
+    const e = 1 - Math.pow(1 - k, 3);
+    camera.position.lerpVectors(flyFromPos, flyTo, e);
+    controls.target.lerpVectors(flyFromLook, flyLookAt, e);
+    camera.lookAt(controls.target);
+    if (k < 1) flyRaf = requestAnimationFrame(step);
+    else { flyRaf = 0; onArrive?.(); }
+  }
+  flyRaf = requestAnimationFrame(step);
+}
+
+function cancelFly() { cancelAnimationFrame(flyRaf); flyRaf = 0; ++flyGen; }
+
+function setFlyTargetZ(z: number) {
+  if (flyRaf) flyTo.z = z;
+  else setWordCameraZ(z);
 }
 
 function computeSongCameraZ(): number {
@@ -255,9 +291,7 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       particlePoints.visible = true;
       controls.minDistance = 8;
       controls.maxDistance = 90;
-      camera.position.set(0, 0, effectiveSongCameraZ(song.url));
-      controls.target.set(0, 0, 0);
-      controls.update();
+      flyCamera(0, effectiveSongCameraZ(song.url), 0, 2000);
       flushCubemapNow();
       backBtn.style.display = 'block';
       requestLoad(song, () => {
@@ -278,10 +312,15 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       setSettingsMode(true);
       cylinderMesh.visible = false;
       particlePoints.visible = true;
+      controls.enabled = false;
+      controls.minDistance = 1;
+      controls.maxDistance = 90;
       flushCubemapNow();
       backBtn.style.display   = 'block';
       clearAllParticles(); clearLyricMeshes();
-      enterSettings(camera, canvas, controls);
+      flyCamera(settingsCameraY(camera, canvas), settingsCameraZ(camera, canvas),
+                settingsCameraY(camera, canvas), 2000,
+                () => enterSettings(camera, canvas, controls));
     },
     () => {
       utilityView       = 'credits';
@@ -316,9 +355,6 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
         const camZ = controls.minDistance;
         controls.maxDistance = 90;
         controls.enabled = false;
-        camera.position.set(0, 0, camZ);
-        controls.target.set(0, 0, 0);
-        controls.update();
         flushCubemapNow();
         backBtn.style.display   = 'block';
         clearAllParticles(); clearLyricMeshes();
@@ -326,7 +362,7 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
         const fovHalf   = (camera.fov / 2) * (Math.PI / 180);
         const halfH     = Math.tan(fovHalf) * camZ * 0.55;
         const textScale = halfH / (creditLines.length * 1.3);
-        displayStaticText(creditLines, textScale);
+        flyCamera(0, camZ, 0, 2000, () => displayStaticText(creditLines, textScale));
       }
     },
     (song) => {
@@ -375,6 +411,7 @@ backBtn.addEventListener('click', triggerBack);
 
 function triggerBack() {
   if (!inPlayback && utilityView === null) return;
+  cancelFly();
   const wasInPlayback = inPlayback;
   const wasUtility    = utilityView;
   inPlayback  = false;
@@ -389,7 +426,16 @@ function triggerBack() {
 
   setHideOuterSphere(true);
 
-  if (wasUtility === 'settings') { setSettingsMode(false); leaveSettings(camera, controls); }
+  if (wasUtility === 'settings') {
+    setSettingsMode(false);
+    leaveSettings(camera, controls);
+    controls.enabled = true;
+    camera.position.set(0, 0, 58);
+    controls.target.set(0, 0, 0);
+    controls.minDistance = 22;
+    controls.maxDistance = 90;
+    controls.update();
+  }
   else {
     controls.enabled = true;
     if (wasUtility === 'credits') {
