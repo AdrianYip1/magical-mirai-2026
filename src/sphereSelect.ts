@@ -2,6 +2,7 @@ import './sphereSelect.css';
 import type { SongOption } from './songSelect';
 import { getLanguage } from './language';
 import { menuState } from './renderer';
+import { setMenuReflectLoading } from './menuReflect';
 
 export type WheelItem =
   | { kind: 'song';     data: SongOption }
@@ -17,7 +18,7 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-const COLORS = ['#00e5ff', '#b388ff', '#f48fb1', '#69f0ae', '#ffd740', '#40c4ff'];
+export const COLORS = ['#00e5ff', '#b388ff', '#f48fb1', '#69f0ae', '#ffd740', '#40c4ff'];
 const RADIUS  = 280;
 
 const CANVAS_W = 170;
@@ -386,7 +387,7 @@ function getUtilLabel(kind: string): string {
 let _cardEls: HTMLDivElement[] = [];
 let _items:   WheelItem[]      = [];
 
-function getSongNames(song: import('./songSelect').SongOption): { name: string; artist: string } {
+export function getSongNames(song: import('./songSelect').SongOption): { name: string; artist: string } {
   const lang = getLanguage();
   if (lang === 'ja') {
     const { name, artist } = parseSong(song.title);
@@ -476,9 +477,9 @@ export function mountSphereSongSelect(
       const cvEl  = card.querySelector<HTMLCanvasElement>('.sss-particle-cv')!;
       loaders.set(i, new ParticleLoader(cvEl, imgEl, thumbnail));
     } else {
-      card.className     = 'sss-card sss-card--utility';
+      card.className     = `sss-card sss-card--utility sss-card--${item.kind}`;
       card.style.cssText = `transform:${baseTransform};`;
-      card.innerHTML     = `<div class="sss-util-label">${getUtilLabel(item.kind)}</div>`;
+      card.innerHTML     = `<div class="sss-util-glyph"></div><div class="sss-util-label">${getUtilLabel(item.kind)}</div>`;
     }
 
     // No per-card listener — activation handled in window onPointerUp so Android
@@ -545,8 +546,11 @@ export function mountSphereSongSelect(
     if (item.kind === 'song') {
       void loaders.get(activeIndex)?.start();
       onHover(item.data);
+      const pcv = cardEls[activeIndex]?.querySelector<HTMLCanvasElement>('.sss-particle-cv') ?? null;
+      setMenuReflectLoading(activeIndex, pcv);
     } else {
       onLeave();
+      setMenuReflectLoading(activeIndex, null);
     }
   }
 
@@ -630,6 +634,7 @@ export function mountSphereSongSelect(
 
   function cleanup() {
     cancelAnimationFrame(raf);
+    setMenuReflectLoading(-1, null);
     loaders.forEach(l => l.cancel());
     root.removeEventListener('pointerdown', onPointerDown);
     window.removeEventListener('pointermove', onPointerMove);
