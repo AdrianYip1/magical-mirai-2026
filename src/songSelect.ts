@@ -10,9 +10,9 @@ export interface SongOption {
     lyricId?: number;
     lyricDiffId?: number;
   };
-  thumbnail: string;
 }
 
+// Builds a simple clickable list of songs.
 export function createSongSelectionUI(
   songs: SongOption[],
   onSelect: (song: SongOption) => void
@@ -49,7 +49,7 @@ export function createSongSelectionUI(
     list.appendChild(li);
   }
 
-  // Minimal styles injected so you can see it immediately (move to CSS later)
+  // Basic styles so the list shows up without extra CSS.
   const style = document.createElement('style');
   style.textContent = `
     .song-select-root { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; z-index:10; pointer-events:none; }
@@ -77,6 +77,7 @@ export function createSongSelectionUI(
   return wrap;
 }
 
+// Loads the songs if needed and adds the list to the page.
 export async function mountSongSelection(
   container: HTMLElement | null,
   songsArg?: SongOption[],
@@ -85,7 +86,7 @@ export async function mountSongSelection(
   let songs = songsArg;
   if (!songs) {
     const mod = await import('./songs');
-    // songs.ts exports `songs` as named and default; handle both
+    // songs.ts exports the list as both a named and a default value.
     songs = (mod.default ?? mod.songs) as SongOption[];
   }
 

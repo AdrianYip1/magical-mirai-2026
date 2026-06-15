@@ -86,25 +86,32 @@ void main() {
     }
 
     vec3  reflectDir   = reflect(-viewDir, faceNormal);
-    float reflBoost    = mix(1.0, 1.15, uDetailLevel);
+    float reflBoost    = mix(1.1, 1.15, uDetailLevel);
     vec3  reflectColour = textureCube(uEnvMap, reflectDir).rgb * reflBoost;
 
+    // Low detail uses a tiny cube map that holds no aurora, so glancing
+    // reflections and the opaque back faces turn pure black. Lift them with a
+    // faint teal tint that fades to zero as detail rises, so high is untouched.
+    reflectColour += vec3(0.06, 0.16, 0.20) * (1.0 - uDetailLevel);
+
     float cosTheta = abs(dot(faceNormal, viewDir));
-    float F0   = mix(0.12, 0.22, uDetailLevel);
+    float F0   = mix(0.16, 0.22, uDetailLevel);
     float fres = fresnel(cosTheta, F0);
 
     vec3  combinedColour;
     float alpha;
     if (totalInternalReflection) {
         combinedColour = reflectColour;
-        alpha = 1.0;
+        // On low detail the opaque back faces read as black slabs. Drop the
+        // opacity so the aurora behind shows through. High detail stays solid.
+        alpha = mix(0.30, 1.0, uDetailLevel);
     } else {
         combinedColour = mix(refracted, reflectColour, fres);
         float edgeThresh = mix(0.40, 0.35, uDetailLevel);
         float edgeFade   = smoothstep(0.0, edgeThresh, cosTheta);
-        float alphaBase  = mix(0.0, 0.42, uDetailLevel);
-        float backBase   = mix(0.15, 0.35, uDetailLevel);
-        float edgeFloor  = mix(0.2, 0.45, uDetailLevel);
+        float alphaBase  = mix(0.06, 0.42, uDetailLevel);
+        float backBase   = mix(0.10, 0.35, uDetailLevel);
+        float edgeFloor  = mix(0.22, 0.45, uDetailLevel);
         float rawAlpha   = gl_FrontFacing ? max(fres, alphaBase) : max(fres, backBase);
         alpha = rawAlpha * mix(edgeFloor, 1.0, edgeFade);
     }

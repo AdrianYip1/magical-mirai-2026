@@ -5,9 +5,11 @@ let _vol = (() => {
   return isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.8;
 })();
 
+// Returns the current playback volume from zero to one.
 export const getVolume = (): number => _vol;
 
+// Clamps the volume to the zero to one range and saves it.
 export function setVolume(v: number): void {
   _vol = Math.max(0, Math.min(1, v));
-  try { localStorage.setItem(KEY, String(_vol)); } catch { /* private mode */ }
+  try { localStorage.setItem(KEY, String(_vol)); } catch {}
 }

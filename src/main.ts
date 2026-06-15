@@ -14,10 +14,9 @@ import * as previewAudio from './previewAudio';
 import { getVolume } from './volume';
 import { enterSettings, leaveSettings, settingsCameraZ, settingsCameraY } from './settingsScene';
 
-// TextAlive's loaders occasionally reject internally (e.g. a lyric diff fetch
-// returns null) in a promise we can't reach from our awaited createFromSongUrl.
-// Keep those from surfacing as fatal "Uncaught (in promise)" noise — the song
-// just fails to load and our own .catch handles the flow.
+// TextAlive sometimes rejects a promise we cannot reach from our own load call.
+// Swallow that noise so it does not show up as an uncaught error. Our own catch
+// already handles a failed load.
 window.addEventListener('unhandledrejection', (e) => {
   const msg = String(e.reason?.message ?? e.reason ?? '');
   if (/sent\(\)|loadDiff|loadLyrics|n is null|\.data/.test(msg)) {
@@ -42,11 +41,10 @@ const player = new Player({
 
 previewAudio.hydrateFromCache(songs.map(s => s.url));
 
-// Audio unlock primer. Browsers block programmatic audio that isn't tied to a
-// user gesture, and our song loads finish seconds after the click that started
-// them — so a deferred requestPlay() gets blocked. Playing a silent clip inside
-// the first gesture grants the page audio permission for the rest of the
-// session, so later (async) plays are allowed.
+// Builds a tiny silent WAV as a data URL.
+// Browsers block audio that is not tied to a tap or click, and our songs finish
+// loading a few seconds after the tap. Playing this silent clip during the first
+// tap unlocks audio for the rest of the visit so later plays are allowed.
 function makeSilentWav(): string {
   const sampleRate = 8000, samples = 80; // ~0.01s of silence
   const buf = new ArrayBuffer(44 + samples);
@@ -59,12 +57,13 @@ function makeSilentWav(): string {
   for (let i = 0; i < samples; i++) v.setUint8(44 + i, 128);   // 8-bit silence
   return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
 }
+// Plays the silent clip on the first tap to unlock audio.
 function unlockAudio() {
   try {
     const a = new Audio(makeSilentWav());
     const p = a.play();
-    if (p) p.then(() => a.pause()).catch(() => { /* still blocked; nothing we can do */ });
-  } catch { /* */ }
+    if (p) p.then(() => a.pause()).catch(() => {}); // still blocked, nothing we can do
+  } catch {}
 }
 for (const ev of ['pointerdown', 'keydown'] as const) {
   window.addEventListener(ev, unlockAudio, { once: true });
@@ -76,6 +75,7 @@ const wheelItems: WheelItem[] = [
   { kind: 'credits' as const },
 ];
 
+// Finds a time near the first chorus to start previews from.
 function findChorusStart(): number {
   for (let t = 5000; t < 240000; t += 5000) {
     const c = player.findChorus(t);
@@ -99,11 +99,13 @@ let backGen = 0;
 let focusedUrl:     string | null = null;
 let meshesBuiltUrl: string | null = null;
 
+// Asks to load a song and run a callback once it is ready.
 function requestLoad(song: SongOption, cb: () => void) {
   desired = { song, cb };
   reconcile();
 }
 
+// Builds the lyric layout once the font and song are both ready.
 function ensureMeshes() {
   if (!fontReady || !player.video || !focusedUrl) return;
   if (currentUrl !== focusedUrl) return;
@@ -116,11 +118,12 @@ function ensureMeshes() {
   }
 }
 
+// Loads the desired song, retrying once any in flight load finishes.
 function reconcile() {
   if (!desired) return;
   const { song, cb } = desired;
   if (currentUrl === song.url) {
-    if (ready && !loading) { desired = null; cb(); }  // already loaded → act now
+    if (ready && !loading) { desired = null; cb(); }  // already loaded so act now
     return; // else: still loading / awaiting timer
   }
   if (loading) return; // busy elsewhere; finally() retries
@@ -128,8 +131,8 @@ function reconcile() {
   currentUrl = song.url;
   ready = false;
 
-  // Drop the lyric diff-> it's the source of the "loadDiff null" crash and only
-  // refines lyric timing; base lyrics still drive the particles.
+  // Skip the lyric diff. It causes a load crash and only refines timing.
+  // The base lyrics still drive the particles.
   const { lyricDiffId, ...video } = song.videoIds ?? {};
   void lyricDiffId;
 
@@ -144,12 +147,14 @@ let setPreviewLoading: (on: boolean) => void = () => {};
 let previewGen      = 0;
 let spinnerTimer:    number | undefined;
 let spinnerMaxTimer: number | undefined;
+// Shows the loading spinner after a short delay and hides it after a timeout.
 function showLoadingSoon(gen: number) {
   clearTimeout(spinnerTimer);
   clearTimeout(spinnerMaxTimer);
   spinnerTimer    = window.setTimeout(() => { if (gen === previewGen) setPreviewLoading(true); }, 200);
   spinnerMaxTimer = window.setTimeout(() => { if (gen === previewGen) setPreviewLoading(false); }, 15000); // never stick
 }
+// Hides the loading spinner for the given request.
 function hideLoading(gen: number) {
   if (gen !== previewGen) return;
   clearTimeout(spinnerTimer);
@@ -161,6 +166,7 @@ let wordCameraZTarget = 12;
 let wordCameraZRaf    = 0;
 let phraseCameraZMax  = 0;
 
+// Eases the camera distance toward its target each frame.
 function tickWordCameraZ() {
   const diff = wordCameraZTarget - camera.position.z;
   if (Math.abs(diff) < 0.05) {
@@ -172,6 +178,7 @@ function tickWordCameraZ() {
   wordCameraZRaf = requestAnimationFrame(tickWordCameraZ);
 }
 
+// Sets the target camera distance for the current word.
 function setWordCameraZ(z: number) {
   wordCameraZTarget = z;
   if (flyRaf) return;
@@ -185,6 +192,7 @@ const flyLookAt   = new THREE.Vector3();
 const flyFromPos  = new THREE.Vector3();
 const flyFromLook = new THREE.Vector3();
 
+// Smoothly flies the camera to a new position and look target.
 function flyCamera(toY: number, toZ: number, lookY: number, durationMs: number, onArrive?: () => void) {
   cancelAnimationFrame(flyRaf);
   cancelAnimationFrame(wordCameraZRaf); wordCameraZRaf = 0;
@@ -194,6 +202,7 @@ function flyCamera(toY: number, toZ: number, lookY: number, durationMs: number, 
   flyFromPos.copy(camera.position);
   flyFromLook.copy(controls.target);
   const start = performance.now();
+  // Moves the camera a little closer to the target each frame.
   function step(now: number) {
     if (flyGen !== gen) return;
     const k = Math.min((now - start) / durationMs, 1);
@@ -207,13 +216,16 @@ function flyCamera(toY: number, toZ: number, lookY: number, durationMs: number, 
   flyRaf = requestAnimationFrame(step);
 }
 
+// Stops any camera fly in progress.
 function cancelFly() { cancelAnimationFrame(flyRaf); flyRaf = 0; ++flyGen; }
 
+// Updates the fly target distance, or eases there if no fly is running.
 function setFlyTargetZ(z: number) {
   if (flyRaf) flyTo.z = z;
   else setWordCameraZ(z);
 }
 
+// Works out the camera distance that frames the lyrics nicely.
 function computeSongCameraZ(): number {
   const { halfH, halfW } = getLayoutHalfExtents();
   const fovHalf = (camera.fov / 2) * (Math.PI / 180);
@@ -235,14 +247,15 @@ function computeSongCameraZ(): number {
   return Math.max(zForH, PC_MIN_Z);
 }
 
-// Songs that need the camera outside the outer sphere to show reflections/refractions.
-// Outer sphere radius = SPHERE_RADIUS * 3 = 21; +4 puts the camera clearly outside.
+// Songs that look best with the camera outside the outer sphere so its
+// reflections show. These need the camera pulled back past the sphere.
 const OUTSIDE_SPHERE_SONGS = new Set([
   'https://piapro.jp/t/6W2N/20251215164617', // Answer Me
   'https://piapro.jp/t/PNpQ/20251209170719', // Shutter Chance
   'https://piapro.jp/t/QBdL/20251215094303', // Toritsukulogy
 ]);
 
+// Returns the camera distance for a song, pulled back for some songs.
 function effectiveSongCameraZ(url: string): number {
   const z = computeSongCameraZ();
   return OUTSIDE_SPHERE_SONGS.has(url) ? Math.max(z, 25) : z;
@@ -264,15 +277,16 @@ cylinderMesh.visible = false;
 particlePoints.visible = false;
 let wheel = remountMenu(songs.length, true);
 
+// Builds a fresh song wheel and wires up all of its callbacks.
 function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typeof mountSphereSongSelect> {
   const m = mountSphereSongSelect(
     wheelItems,
     (song) => {
       previewAudio.stop();
       previewing = false;
-      // Don't stop the player — it's already playing the preview, so seeking to 0
-      // keeps audio going within the user's click (no autoplay re-block). The
-      // awaitingSeek gate below suppresses the chorus lyrics until the seek lands.
+      // Do not stop the player. It is already playing the preview, so seeking to
+      // the start keeps the sound going inside the same tap and avoids a fresh
+      // autoplay block. The awaitingSeek flag hides chorus lyrics until it lands.
       clearAllParticles(); clearLyricMeshes();
       currentWord = currentChar = currentPhrase = null;
       awaitingSeek = true;
@@ -352,8 +366,6 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
           'Natsuyama Yotsugi × Dopamine',
           'Toritsukulogy  Tsuruzou',
           'TAKEOVER  Twinfield',
-          '',
-          'Thumbnails  piapro.jp  YouTube',
         ];
         const camZ = 23;
         controls.maxDistance = 90;
@@ -412,6 +424,7 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
 
 backBtn.addEventListener('click', triggerBack);
 
+// Returns from a song or panel back to the menu with a fly out and crossfade.
 function triggerBack() {
   if (!inPlayback && utilityView === null) return;
   cancelFly();
@@ -494,9 +507,11 @@ function triggerBack() {
   }, FLY_MS - REVEAL_MS);
 }
 
+// Fades the menu cylinder in while the song particles fade out.
 function crossfadeToMenu(gen: number, duration = 700) {
   const TARGET_OPACITY = 0.7;
   const start = performance.now();
+  // Advances the crossfade a little each frame.
   function step(now: number) {
     if (backGen !== gen) return;
     const k = Math.min((now - start) / duration, 1);
@@ -516,11 +531,13 @@ function crossfadeToMenu(gen: number, duration = 700) {
   requestAnimationFrame(step);
 }
 
+// Smooth ramp from zero to one between two edges.
 function smoothstep(edge0: number, edge1: number, x: number): number {
   const t = Math.min(Math.max((x - edge0) / (edge1 - edge0), 0), 1);
   return t * t * (3 - 2 * t);
 }
 
+// Turns captured menu points into particle targets in world space.
 function buildMenuTargets(menuParticles: DiParticle[]): { indices: Uint32Array; samples: Float32Array; colors: Float32Array } {
   const TOTAL = COUNT;
   const indices = new Uint32Array(TOTAL);
@@ -583,6 +600,7 @@ const FLAT_MAP: Record<string,string> = {
   Db:'C#',Eb:'D#',Fb:'E',Gb:'F#',Ab:'G#',Bb:'A#',Cb:'B',
 };
 
+// Helper that turns one hue channel into a colour value.
 function hue2rgb(p: number, q: number, t: number): number {
   if (t < 0) t += 1; if (t > 1) t -= 1;
   if (t < 1/6) return p + (q - p) * 6 * t;
@@ -591,6 +609,7 @@ function hue2rgb(p: number, q: number, t: number): number {
   return p;
 }
 
+// Maps a chord name to a colour using its root note and major or minor feel.
 function chordToRgb(name: string): [number, number, number] {
   let root = name.length > 1 && (name[1] === '#' || name[1] === 'b')
     ? name.slice(0, 2) : name[0];
@@ -608,6 +627,7 @@ function chordToRgb(name: string): [number, number, number] {
 
 let introShown = false;
 
+// Plays the opening title sequence then reveals the menu.
 function showIntro() {
   if (introShown) return;
   introShown = true;
@@ -666,24 +686,29 @@ function showIntro() {
   }, 2800);
 }
 
+// Start the app once the lyric font has loaded.
 initLyrics(() => {
   fontReady = true;
   ensureMeshes();
   showIntro();
 });
 
+// Listens to the TextAlive player and drives the visuals from the song.
 player.addListener({
   onAppReady(_app: IPlayerApp) {},
 
+  // Goes back to the menu shortly after the song stops.
   onStop() {
     if (inPlayback) setTimeout(() => { if (inPlayback) triggerBack(); }, 2000);
   },
 
+  // Builds the lyric layout once the song video data is ready.
   onVideoReady() {
     console.info(`[load] videoReady +${Math.round(performance.now() - loadStart)}ms`, currentUrl);
     ensureMeshes();
   },
 
+  // Marks the song playable and saves its audio link for fast previews.
   onTimerReady() {
     console.info(`[load] timerReady +${Math.round(performance.now() - loadStart)}ms (playable)`, currentUrl);
     timerReady = true;
@@ -694,12 +719,13 @@ player.addListener({
     if (currentUrl && src) {
       const chorusMs = findChorusStart();
       previewAudio.registerSource(currentUrl, src, chorusMs);
-      console.info('[preview] resolved', currentUrl, '→', src, `chorus=${chorusMs}ms`);
+      console.info('[preview] resolved', currentUrl, '->', src, `chorus=${chorusMs}ms`);
     }
 
     reconcile();
   },
 
+  // Runs as the song plays and drives lyrics, beats, chords, and the camera.
   onTimeUpdate(position: number) {
     if (!player.video) return;
 

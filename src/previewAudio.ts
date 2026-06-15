@@ -1,9 +1,6 @@
-// TextAlive's single Player makes every song-switch a network reload (song map
-// + audio buffering), so first-visit previews are slow. To get instant
-// previews we decouple preview *audio* from TextAlive: the first time a song is
-// loaded we capture its resolved audio URL + chorus offset, cache them in
-// localStorage, and from then on play the snippet from a standalone <audio>
-// element. No lyric sync is needed for a preview — just sound.
+// Plays short song previews from a plain audio element.
+// The first time a song loads through TextAlive we save its audio link, then
+// later previews play right away without waiting for a full reload.
 
 import { getVolume } from './volume';
 
@@ -11,24 +8,27 @@ type PreviewMeta = { src: string; chorusMs: number };
 
 const CACHE_KEY = 'holofragment.preview.v1';
 const FADE_MS        = 180;
-const LOOP_WINDOW_S  = 15; // restart the snippet after this many seconds
+const LOOP_WINDOW_S  = 15;
 
+// Reads the saved song links from local storage.
 function loadCache(): Record<string, PreviewMeta> {
   try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'); }
   catch { return {}; }
 }
 
+// Writes the saved song links back to local storage.
 function saveCache(c: Record<string, PreviewMeta>) {
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch { /* private mode */ }
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch {}
 }
 
 const cache    = loadCache();
 const elements = new Map<string, HTMLAudioElement>();
 
-let current  = '';   // song url of the element currently playing
+let current  = '';
 let fadeRaf  = 0;
-let fadeFor  = '';   // song url the active fade belongs to
+let fadeFor  = '';
 
+// Creates an audio element for a preview and seeks it to the chorus.
 function makeAudio(meta: PreviewMeta): HTMLAudioElement {
   const a = new Audio();
   a.preload = 'auto';
@@ -36,31 +36,30 @@ function makeAudio(meta: PreviewMeta): HTMLAudioElement {
   a.src     = meta.src;
 
   const start = meta.chorusMs / 1000;
-  const seek  = () => { try { a.currentTime = start; } catch { /* not seekable yet */ } };
+  const seek  = () => { try { a.currentTime = start; } catch {} };
   if (a.readyState >= 1) seek();
   else a.addEventListener('loadedmetadata', seek, { once: true });
 
-  // Loop the snippet so a held preview doesn't run into the next section.
+  // Loop the snippet so a held preview does not run into the next section.
   a.addEventListener('timeupdate', () => {
-    if (a.currentTime > start + LOOP_WINDOW_S) { try { a.currentTime = start; } catch { /* */ } }
+    if (a.currentTime > start + LOOP_WINDOW_S) { try { a.currentTime = start; } catch {} }
   });
 
   a.load();
   return a;
 }
 
-// blob:/mediasource:/data: URLs are bound to the element that created them and
-// can't be replayed in a fresh <audio>; only real http(s) URLs are reusable.
+// Only real web links can be replayed in a fresh audio element.
 function isReplayable(src: string): boolean {
   return /^https?:\/\//.test(src);
 }
 
-/** Whether we've already resolved (and cached) a song's audio URL. */
+// Returns true if we already saved this song audio link.
 export function isCached(songUrl: string): boolean {
   return !!cache[songUrl];
 }
 
-/** Forget a song whose cached URL no longer works (e.g. a signed URL expired). */
+// Forgets a song whose saved link no longer works.
 function invalidate(songUrl: string) {
   delete cache[songUrl];
   saveCache(cache);
@@ -68,7 +67,7 @@ function invalidate(songUrl: string) {
   if (current === songUrl) current = '';
 }
 
-/** Recreate <audio> elements for any songs we've resolved in a past session. */
+// Rebuilds audio elements for songs we saved in a past visit.
 export function hydrateFromCache(songUrls: string[]) {
   for (const url of songUrls) {
     const meta = cache[url];
@@ -76,25 +75,26 @@ export function hydrateFromCache(songUrls: string[]) {
   }
 }
 
-/** Record a song's resolved audio URL the first time TextAlive loads it. */
+// Saves a song audio link the first time TextAlive loads it.
 export function registerSource(songUrl: string, src: string, chorusMs: number) {
-  if (!src || !isReplayable(src)) return; // no src, or a blob/MediaSource we can't replay → fallback
-  console.info('[preview] cached replayable src', songUrl, '→', src);
+  if (!src || !isReplayable(src)) return;
+  console.info('[preview] cached replayable src', songUrl, '->', src);
   const prev = cache[songUrl];
-  if (prev && prev.src === src) return;   // already known
+  if (prev && prev.src === src) return;
   const meta: PreviewMeta = { src, chorusMs };
   cache[songUrl] = meta;
   saveCache(cache);
   if (!elements.has(songUrl)) elements.set(songUrl, makeAudio(meta));
 }
 
+// Fades a preview up to the current volume.
 function fadeIn(songUrl: string, a: HTMLAudioElement) {
   cancelAnimationFrame(fadeRaf);
   fadeFor = songUrl;
   const from = a.volume;
   const t0   = performance.now();
   const step = (t: number) => {
-    if (fadeFor !== songUrl) return;      // superseded by a newer preview
+    if (fadeFor !== songUrl) return;
     const k = Math.min(1, (t - t0) / FADE_MS);
     a.volume = from + (getVolume() - from) * k;
     if (k < 1) fadeRaf = requestAnimationFrame(step);
@@ -102,18 +102,15 @@ function fadeIn(songUrl: string, a: HTMLAudioElement) {
   fadeRaf = requestAnimationFrame(step);
 }
 
-/**
- * Play a song's preview instantly. Returns false if we haven't resolved this
- * song's audio yet — the caller should fall back to the TextAlive path, which
- * will register the source for next time.
- */
+// Plays a song preview right away. Returns false if the song is not saved yet
+// so the caller can fall back to the TextAlive path.
 export function play(songUrl: string, onPlaying?: () => void, onError?: () => void): boolean {
   const a = elements.get(songUrl);
   if (!a) return false;
 
-  if (current === songUrl && !a.paused) { onPlaying?.(); return true; }  // already audible
+  if (current === songUrl && !a.paused) { onPlaying?.(); return true; }
 
-  a.addEventListener('error', () => {           // bad/expired URL → drop it, let caller fall back
+  a.addEventListener('error', () => {
     console.warn('[preview] audio error, invalidating', songUrl);
     invalidate(songUrl);
     onError?.();
@@ -126,14 +123,14 @@ export function play(songUrl: string, onPlaying?: () => void, onError?: () => vo
   if (meta) {
     const start = meta.chorusMs / 1000;
     if (Math.abs(a.currentTime - start) > LOOP_WINDOW_S) {
-      try { a.currentTime = start; } catch { /* */ }
+      try { a.currentTime = start; } catch {}
     }
   }
 
   a.volume = 0;
   const t0 = performance.now();
   a.addEventListener('playing', () => {
-    const buffered = a.buffered.length ? `${a.buffered.start(0).toFixed(0)}–${a.buffered.end(a.buffered.length - 1).toFixed(0)}s` : 'none';
+    const buffered = a.buffered.length ? `${a.buffered.start(0).toFixed(0)} to ${a.buffered.end(a.buffered.length - 1).toFixed(0)}s` : 'none';
     console.info(`[preview] audible in ${Math.round(performance.now() - t0)}ms (readyState=${a.readyState}, buffered=${buffered})`);
     onPlaying?.();
   }, { once: true });
@@ -144,7 +141,7 @@ export function play(songUrl: string, onPlaying?: () => void, onError?: () => vo
   return true;
 }
 
-/** Stop the current preview (on leaving a song or starting full playback). */
+// Stops whatever preview is playing.
 export function stop() {
   if (!current) return;
   elements.get(current)?.pause();

@@ -3,12 +3,11 @@ import type { WheelItem } from './sphereSelect';
 import { getSongNames, COLORS } from './sphereSelect';
 import { cylDims, menuState } from './renderer';
 import { getLanguage, onLanguageChange } from './language';
+import { proceduralThumbnail } from './procThumb';
 
 export const menuReflectScene = new THREE.Scene();
 const proxyGroup = new THREE.Group();
 menuReflectScene.add(proxyGroup);
-
-const PLACEHOLDER = import.meta.env.BASE_URL + 'assets/placeholder_miku.png';
 
 interface Tile {
   texture:    THREE.CanvasTexture;
@@ -21,6 +20,7 @@ let tiles: Tile[] = [];
 let loadingTile: Tile | null = null;
 let loadingCv:   CanvasImageSource | null = null;
 
+// Makes a blank canvas and matching texture sized to one card.
 function makeCanvasTile(aspect: number) {
   const H = 256;
   const W = Math.max(64, Math.round(H * aspect));
@@ -32,6 +32,7 @@ function makeCanvasTile(aspect: number) {
   return { ctx, tex, W, H };
 }
 
+// Draws the song name and artist over a dark gradient.
 function drawSongText(
   ctx: CanvasRenderingContext2D, W: number, H: number,
   name: string, artist: string, accent: string,
@@ -55,6 +56,7 @@ function drawSongText(
   ctx.shadowBlur = 0;
 }
 
+// Draws the settings or credits card with its icon and label.
 function drawUtil(ctx: CanvasRenderingContext2D, W: number, H: number, kind: 'settings' | 'credits') {
   ctx.clearRect(0, 0, W, H);
   const bg = ctx.createLinearGradient(0, 0, W, H);
@@ -92,6 +94,7 @@ function drawUtil(ctx: CanvasRenderingContext2D, W: number, H: number, kind: 'se
   ctx.letterSpacing = '0px';
 }
 
+// Draws an image so it fills the card without stretching.
 function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, W: number, H: number) {
   const ir = img.width / img.height;
   const cr = W / H;
@@ -100,6 +103,7 @@ function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, W: numb
   ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
 }
 
+// Builds the reflected copies of every card shown in the water.
 export function initMenuReflect(items: WheelItem[]) {
   for (const child of [...proxyGroup.children]) {
     proxyGroup.remove(child);
@@ -153,14 +157,11 @@ export function initMenuReflect(items: WheelItem[]) {
       tile = { texture: tex, kind: 'song', drawStatic, drawLoading };
       drawStatic();
 
+      // Load the card art and redraw once it is ready.
       const loadImg = new Image();
       loadImg.crossOrigin = 'anonymous';
       loadImg.onload = () => { img = loadImg; if (loadingTile !== tile) { drawStatic(); tex.needsUpdate = true; } };
-      loadImg.onerror = () => {
-        if (loadImg.src.endsWith('placeholder_miku.png')) return;
-        loadImg.src = PLACEHOLDER;
-      };
-      loadImg.src = item.data.thumbnail || PLACEHOLDER;
+      loadImg.src = proceduralThumbnail(item.data.url);
     } else {
       const kind = item.kind;
       tile = { texture: tex, kind: 'util', drawStatic: () => drawUtil(ctx, W, H, kind) };
@@ -178,7 +179,7 @@ export function initMenuReflect(items: WheelItem[]) {
   });
 }
 
-// Mirror a song tile's particle-loading animation in the water; pass null to stop.
+// Mirrors a song card loading animation in the water. Pass null to stop.
 export function setMenuReflectLoading(index: number, cv: CanvasImageSource | null) {
   const prev = loadingTile;
   const next = (cv && index >= 0 && index < tiles.length && tiles[index].kind === 'song')
@@ -192,6 +193,7 @@ export function setMenuReflectLoading(index: number, cv: CanvasImageSource | nul
   loadingCv   = next ? cv : null;
 }
 
+// Spins the reflection with the wheel and redraws any loading card.
 export function updateMenuReflect() {
   proxyGroup.rotation.y = menuState.cylAngle;
   if (loadingTile && loadingCv && loadingTile.drawLoading) {

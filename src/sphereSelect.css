@@ -58,7 +58,7 @@
   overflow: hidden;
 }
 
-/* Song card — full-bleed background image + canvas */
+/* Song card background image and particle canvas */
 
 .sss-card-bg {
   position: absolute;
@@ -108,7 +108,7 @@
   text-overflow: ellipsis;
 }
 
-/* Utility cards (Settings / Credits) — holographic glass */
+/* Utility cards for settings and credits */
 
 .sss-card--utility {
   --c: #22dbcc;

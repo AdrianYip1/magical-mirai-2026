@@ -8,6 +8,7 @@ import { PARTICLE_WIDTH } from './perf';
 const WIDTH = PARTICLE_WIDTH;
 export const COUNT = WIDTH * WIDTH;
 
+// Fills a texture with a random start position for every particle.
 function makeInitialState(): THREE.DataTexture {
   const data = new Float32Array(COUNT * 4);
   for (let i = 0; i < COUNT; i++) {
@@ -21,6 +22,7 @@ function makeInitialState(): THREE.DataTexture {
   return tex;
 }
 
+// Creates a float render target used by the particle simulation.
 function makeRT(): THREE.WebGLRenderTarget {
   return new THREE.WebGLRenderTarget(WIDTH, WIDTH, {
     minFilter: THREE.NearestFilter,
@@ -65,6 +67,7 @@ const simMaterial = new THREE.RawShaderMaterial({
   },
 });
 
+// Turns on a set of particles and sends them toward a word shape.
 export function activateWordParticles(indices: Uint32Array, samples: Float32Array, colors?: Float32Array) {
   for (let i = 0; i < indices.length; i++) {
     const p = indices[i];
@@ -88,6 +91,7 @@ export function activateWordParticles(indices: Uint32Array, samples: Float32Arra
   colorTex.needsUpdate      = true;
 }
 
+// Turns off the given particles so they drift away.
 export function clearParticles(indices: Uint32Array) {
   for (let i = 0; i < indices.length; i++) {
     const p = indices[i];
@@ -97,6 +101,7 @@ export function clearParticles(indices: Uint32Array) {
   assignmentTex.needsUpdate = true;
 }
 
+// Turns off every particle at once.
 export function clearAllParticles() {
   assignmentData.fill(0);
   assignmentTex.needsUpdate = true;
@@ -104,6 +109,7 @@ export function clearAllParticles() {
   colorTex.needsUpdate = true;
 }
 
+// Releases any active particles that sit inside the given box.
 export function scatterParticlesInBox(
   minX: number, maxX: number,
   minY: number, maxY: number,
@@ -116,7 +122,7 @@ export function scatterParticlesInBox(
     const ty = targetData[p * 4 + 1];
     const tz = targetData[p * 4 + 2];
     if (tx >= minX && tx <= maxX && ty >= minY && ty <= maxY && tz >= minZ && tz <= maxZ) {
-      assignmentData[p * 4 + 1] = -1e6; // age_s becomes huge → fade = 0
+      assignmentData[p * 4 + 1] = -1e6; // makes its age huge so it fades out
       changed = true;
     }
   }
@@ -162,14 +168,17 @@ const renderMaterial = new THREE.ShaderMaterial({
 
 export const points = new THREE.Points(geometry, renderMaterial);
 
+// Sets how fast particles fade after they are released.
 export function setFadeRate(rate: number) {
   simMaterial.uniforms.uFadeRate.value = rate;
 }
 
+// Sets the overall particle opacity.
 export function setParticleAlpha(a: number) {
   renderMaterial.uniforms.uGlobalAlpha.value = a;
 }
 
+// Steps the particle simulation one frame and swaps the buffers.
 export function update(renderer: THREE.WebGLRenderer, elapsed: number, delta: number, beat = 0, envMap?: THREE.Texture) {
   elapsedTime = elapsed;
   simMaterial.uniforms.uState.value = prevTex;

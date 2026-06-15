@@ -94,6 +94,7 @@ for (let i = 0; i < SPIN_CHIP_COUNT;   i++) spinChipIndices[i]   = SPIN_CHIP_BAS
 for (let i = 0; i < GLASS_HEAD_COUNT;  i++) glassHeadIndices[i]  = GLASS_HEAD_BASE + i;
 for (let i = 0; i < GLASS_CHIP_COUNT;  i++) glassChipIndices[i]  = GLASS_CHIP_BASE + i;
 
+// Creates the glass material used for the settings text.
 function makeGlassMat(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     vertexShader:   lyricGlassVert,
@@ -156,6 +157,7 @@ let overlayRaf    = 0;
 let scrollCam:    THREE.PerspectiveCamera | null = null;
 let scrollCanvas: HTMLCanvasElement       | null = null;
 
+// Keeps the clickable overlays lined up with their 3D text.
 function updateOverlayPositions(cam: THREE.PerspectiveCamera, cvs: HTMLCanvasElement) {
   if (overlayEl) {
     const tl  = worldToScreen(BAR_LEFT,  BAR_TOP,    cam, cvs);
@@ -184,6 +186,7 @@ function updateOverlayPositions(cam: THREE.PerspectiveCamera, cvs: HTMLCanvasEle
   moveChip(glassFxChipOverlay, GLASS_CHIP_Y,  glassFxChipW, glassFxChipH);
 }
 
+// Measures how big a chip overlay should be on screen.
 function computeChipOverlaySize(
   geo: THREE.BufferGeometry | null,
   chipY: number,
@@ -201,6 +204,7 @@ function computeChipOverlaySize(
   };
 }
 
+// Updates the overlay positions every frame while scrolling.
 function syncOverlaysTick() {
   if (!scrollCam || !scrollCanvas) return;
   scrollCam.updateMatrixWorld(true);
@@ -208,6 +212,7 @@ function syncOverlaysTick() {
   overlayRaf = requestAnimationFrame(syncOverlaysTick);
 }
 
+// Picks points along the edges of the volume bar.
 function sampleOutline(): Float32Array {
   const out = new Float32Array(OUTLINE_COUNT * 4);
   for (let i = 0; i < OUTLINE_COUNT; i++) {
@@ -223,6 +228,7 @@ function sampleOutline(): Float32Array {
   return out;
 }
 
+// Picks points inside the volume bar sorted from left to right.
 function buildFillSamples(): Float32Array {
   const xs = new Float32Array(FILL_COUNT);
   const ys = new Float32Array(FILL_COUNT);
@@ -241,6 +247,7 @@ function buildFillSamples(): Float32Array {
   return out;
 }
 
+// Fills or empties the volume bar to match the level.
 function updateBar(v: number) {
   if (!fillSamples) return;
   const fillCount = Math.round(v * FILL_COUNT);
@@ -256,11 +263,13 @@ function updateBar(v: number) {
   prevFillCount = fillCount;
 }
 
+// Converts a world point into screen pixels.
 function worldToScreen(wx: number, wy: number, camera: THREE.Camera, el: HTMLCanvasElement) {
   const v = new THREE.Vector3(wx, wy, 0).project(camera);
   return { x: (v.x + 1) / 2 * el.clientWidth, y: (-v.y + 1) / 2 * el.clientHeight };
 }
 
+// Adds the drag overlay over the volume bar.
 function setupOverlay(camera: THREE.Camera, canvasEl: HTMLCanvasElement) {
   const tl  = worldToScreen(BAR_LEFT,  BAR_TOP,    camera, canvasEl);
   const br  = worldToScreen(BAR_RIGHT, BAR_BOTTOM, camera, canvasEl);
@@ -287,6 +296,7 @@ function setupOverlay(camera: THREE.Camera, canvasEl: HTMLCanvasElement) {
   window.addEventListener('pointerup',     onUp);
 }
 
+// Adds the clickable overlay over the language chip.
 function setupChipOverlay(
   camera: THREE.Camera,
   canvasEl: HTMLCanvasElement,
@@ -310,19 +320,25 @@ function setupChipOverlay(
   langChipOverlay.addEventListener('pointerdown', (e) => { e.stopPropagation(); onToggle(); });
 }
 
+// Turns a pointer x position into a volume from zero to one.
 function fromPointerX(clientX: number): number {
   return Math.max(0, Math.min(1, (clientX - barScreenL) / barScreenW));
 }
 
+// Starts dragging the volume bar.
 function onDown(e: PointerEvent) { isDragging = true;  applyVolume(fromPointerX(e.clientX)); }
+// Updates the volume while dragging.
 function onMove(e: PointerEvent) { if (isDragging) applyVolume(fromPointerX(e.clientX)); }
+// Stops dragging the volume bar.
 function onUp()                  { isDragging = false; }
 
+// Saves the volume and updates the bar.
 function applyVolume(v: number) {
   setVolume(v);
   updateBar(v);
 }
 
+// Rebuilds the VOLUME label text.
 function rebuildLabelMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   if (labelMesh) { scene.remove(labelMesh); (labelMesh.material as THREE.ShaderMaterial).dispose(); labelMesh = null; }
   if (labelGeo)  { labelGeo.dispose(); labelGeo = null; }
@@ -343,6 +359,7 @@ function rebuildLabelMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   scene.add(labelMesh);
 }
 
+// Rebuilds the LANGUAGES heading text.
 function rebuildLangSectionMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   if (langSectionMesh) { scene.remove(langSectionMesh); (langSectionMesh.material as THREE.ShaderMaterial).dispose(); langSectionMesh = null; }
   if (langSectionGeo)  { langSectionGeo.dispose(); langSectionGeo = null; }
@@ -361,6 +378,7 @@ function rebuildLangSectionMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   scene.add(langSectionMesh);
 }
 
+// Rebuilds the language chip text.
 function rebuildChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   if (langChipMesh) { scene.remove(langChipMesh); (langChipMesh.material as THREE.ShaderMaterial).dispose(); langChipMesh = null; }
   if (langChipGeo)  { langChipGeo.dispose(); langChipGeo = null; }
@@ -379,6 +397,7 @@ function rebuildChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   scene.add(langChipMesh);
 }
 
+// Rebuilds the DETAIL heading text.
 function rebuildDetailSectionMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   if (detailSectionMesh) { scene.remove(detailSectionMesh); (detailSectionMesh.material as THREE.ShaderMaterial).dispose(); detailSectionMesh = null; }
   if (detailSectionGeo)  { detailSectionGeo.dispose(); detailSectionGeo = null; }
@@ -397,6 +416,7 @@ function rebuildDetailSectionMesh(font: NonNullable<ReturnType<typeof getFont>>)
   scene.add(detailSectionMesh);
 }
 
+// Rebuilds the detail chip text.
 function rebuildDetailChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   if (detailChipMesh) { scene.remove(detailChipMesh); (detailChipMesh.material as THREE.ShaderMaterial).dispose(); detailChipMesh = null; }
   if (detailChipGeo)  { detailChipGeo.dispose(); detailChipGeo = null; }
@@ -417,6 +437,7 @@ function rebuildDetailChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   scene.add(detailChipMesh);
 }
 
+// Rebuilds the ROTATION heading text.
 function rebuildSpinSectionMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   if (spinSectionMesh) { scene.remove(spinSectionMesh); (spinSectionMesh.material as THREE.ShaderMaterial).dispose(); spinSectionMesh = null; }
   if (spinSectionGeo)  { spinSectionGeo.dispose(); spinSectionGeo = null; }
@@ -435,6 +456,7 @@ function rebuildSpinSectionMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   scene.add(spinSectionMesh);
 }
 
+// Rebuilds the rotation chip text.
 function rebuildSpinChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   if (spinChipMesh) { scene.remove(spinChipMesh); (spinChipMesh.material as THREE.ShaderMaterial).dispose(); spinChipMesh = null; }
   if (spinChipGeo)  { spinChipGeo.dispose(); spinChipGeo = null; }
@@ -455,6 +477,7 @@ function rebuildSpinChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   scene.add(spinChipMesh);
 }
 
+// Rebuilds the GLASS FX heading text.
 function rebuildGlassFxSectionMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   if (glassFxSectionMesh) { scene.remove(glassFxSectionMesh); (glassFxSectionMesh.material as THREE.ShaderMaterial).dispose(); glassFxSectionMesh = null; }
   if (glassFxSectionGeo)  { glassFxSectionGeo.dispose(); glassFxSectionGeo = null; }
@@ -473,6 +496,7 @@ function rebuildGlassFxSectionMesh(font: NonNullable<ReturnType<typeof getFont>>
   scene.add(glassFxSectionMesh);
 }
 
+// Rebuilds the glass fx chip text.
 function rebuildGlassFxChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   if (glassFxChipMesh) { scene.remove(glassFxChipMesh); (glassFxChipMesh.material as THREE.ShaderMaterial).dispose(); glassFxChipMesh = null; }
   if (glassFxChipGeo)  { glassFxChipGeo.dispose(); glassFxChipGeo = null; }
@@ -493,6 +517,7 @@ function rebuildGlassFxChipMesh(font: NonNullable<ReturnType<typeof getFont>>) {
   scene.add(glassFxChipMesh);
 }
 
+// Adds the clickable overlay over the glass fx chip.
 function setupGlassFxChipOverlay(
   camera: THREE.Camera,
   canvasEl: HTMLCanvasElement,
@@ -516,6 +541,7 @@ function setupGlassFxChipOverlay(
   glassFxChipOverlay.addEventListener('pointerdown', (e) => { e.stopPropagation(); onToggle(); });
 }
 
+// Adds the clickable overlay over the detail chip.
 function setupDetailChipOverlay(
   camera: THREE.Camera,
   canvasEl: HTMLCanvasElement,
@@ -539,6 +565,7 @@ function setupDetailChipOverlay(
   detailChipOverlay.addEventListener('pointerdown', (e) => { e.stopPropagation(); onToggle(); });
 }
 
+// Adds the clickable overlay over the rotation chip.
 function setupSpinChipOverlay(
   camera: THREE.Camera,
   canvasEl: HTMLCanvasElement,
@@ -562,6 +589,7 @@ function setupSpinChipOverlay(
   spinChipOverlay.addEventListener('pointerdown', (e) => { e.stopPropagation(); onToggle(); });
 }
 
+// Works out how far back the camera sits in settings.
 export function settingsCameraZ(camera: THREE.PerspectiveCamera, canvasEl: HTMLCanvasElement): number {
   const fovHalf = (camera.fov / 2) * (Math.PI / 180);
   const aspect  = canvasEl.clientWidth / canvasEl.clientHeight;
@@ -570,6 +598,7 @@ export function settingsCameraZ(camera: THREE.PerspectiveCamera, canvasEl: HTMLC
   return Math.max(zForH, zForW, 23);
 }
 
+// Works out the camera height in settings.
 export function settingsCameraY(camera: THREE.PerspectiveCamera, canvasEl: HTMLCanvasElement): number {
   const fovHalf   = (camera.fov / 2) * (Math.PI / 180);
   const viewHalfH = Math.tan(fovHalf) * settingsCameraZ(camera, canvasEl);
@@ -577,6 +606,7 @@ export function settingsCameraY(camera: THREE.PerspectiveCamera, canvasEl: HTMLC
   return base - 1.0;
 }
 
+// Opens the settings screen and builds all of its text and controls.
 export function enterSettings(
   camera: THREE.PerspectiveCamera,
   canvasEl: HTMLCanvasElement,
@@ -681,6 +711,7 @@ export function enterSettings(
   });
 }
 
+// Closes the settings screen and cleans everything up.
 export function leaveSettings(
   _camera: THREE.PerspectiveCamera,
   orbitControls: OrbitControls,

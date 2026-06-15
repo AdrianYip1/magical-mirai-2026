@@ -39,6 +39,7 @@ let savedCamQuat: THREE.Quaternion | null = null;
 let savedTarget:  THREE.Vector3    | null = null;
 let orbitRef:     OrbitControls    | null = null;
 
+// Creates the glass material used for the language text.
 function makeGlassMat(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     vertexShader:   lyricGlassVert,
@@ -57,11 +58,13 @@ function makeGlassMat(): THREE.ShaderMaterial {
   });
 }
 
+// Converts a world point into screen pixels.
 function worldToScreen(wx: number, wy: number, camera: THREE.Camera, el: HTMLCanvasElement) {
   const v = new THREE.Vector3(wx, wy, 0).project(camera);
   return { x: (v.x + 1) / 2 * el.clientWidth, y: (-v.y + 1) / 2 * el.clientHeight };
 }
 
+// Highlights the chosen language and dims the other one.
 function highlightCurrent() {
   const lang = getLanguage();
   if (enMesh) (enMesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = lang === 'en' ? 1.0 : 0.2;
@@ -78,6 +81,7 @@ function highlightCurrent() {
   }
 }
 
+// Opens the language screen and builds its text.
 export function enterLanguage(
   camera: THREE.PerspectiveCamera,
   canvasEl: HTMLCanvasElement,
@@ -127,6 +131,7 @@ export function enterLanguage(
 
   highlightCurrent();
 
+  // Adds an invisible clickable box over an option.
   function makeOverlay(worldY: number, onClick: () => void): HTMLDivElement {
     const tl = worldToScreen(-LAYOUT_HALF_W, worldY + OPT_SIZE * 0.85, camera, canvasEl);
     const br = worldToScreen( LAYOUT_HALF_W, worldY - OPT_SIZE * 0.85, camera, canvasEl);
@@ -147,6 +152,7 @@ export function enterLanguage(
   jaOverlay = makeOverlay(JA_Y, () => { setLanguage('ja'); highlightCurrent(); });
 }
 
+// Closes the language screen and restores the camera.
 export function leaveLanguage(
   camera: THREE.PerspectiveCamera,
   orbitControls: OrbitControls,

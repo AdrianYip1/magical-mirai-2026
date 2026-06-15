@@ -13,7 +13,7 @@ varying vec2 vUv;
 #ifdef MOBILE
 
 // Analytical curl of F = (sin(y)*sin(z), sin(z)*sin(x), sin(x)*sin(y)).
-// Zero hash/noise evaluations — ~32x cheaper than FBM curl.
+// No noise lookups so it is far cheaper than the curl version.
 vec3 curl(vec3 p) {
     p = p * 0.08 + uTime * 0.06;
     return vec3(

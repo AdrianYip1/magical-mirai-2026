@@ -11,6 +11,7 @@ export const VERT_STEP = 5;
 const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
 const GOLDEN_ANGLE = 2 * Math.PI * (2 - GOLDEN_RATIO);
 
+// Spreads points evenly over a sphere using the golden angle.
 export function fibSphere(vertices: number): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
   const positions = new Float32Array(vertices * 3);
@@ -25,6 +26,7 @@ export function fibSphere(vertices: number): THREE.BufferGeometry {
   return geometry;
 }
 
+// Wraps those points in a faceted shell to get the glass sphere shape.
 export function buildConvexGeometry(vertexCount: number): THREE.BufferGeometry {
   const pointsGeo = fibSphere(vertexCount);
   const positions = pointsGeo.attributes.position;
@@ -41,6 +43,7 @@ export function buildConvexGeometry(vertexCount: number): THREE.BufferGeometry {
   return flat;
 }
 
+// Builds a glass sphere mesh and adds it to the scene on the given layer.
 export function drawSphere(
   scene: THREE.Scene,
   vertexCount: number,

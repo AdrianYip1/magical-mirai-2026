@@ -3,17 +3,20 @@ import type { SongOption } from './songSelect';
 import { getLanguage } from './language';
 import { menuState } from './renderer';
 import { setMenuReflectLoading } from './menuReflect';
+import { proceduralThumbnail } from './procThumb';
 
 export type WheelItem =
   | { kind: 'song';     data: SongOption }
   | { kind: 'settings' }
   | { kind: 'credits'}
 
+// Splits a song title into its name and artist parts.
 function parseSong(raw: string): { name: string; artist: string } {
   const i = raw.lastIndexOf(' — ');
   return i !== -1 ? { name: raw.slice(0, i), artist: raw.slice(i + 3) } : { name: raw, artist: '' };
 }
 
+// Escapes the characters that have special meaning in HTML.
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -42,6 +45,7 @@ interface Ptcl {
 
 type LoadPhase = 'idle' | 'converge' | 'pulse' | 'done';
 
+// Loads an image and returns its pixels drawn at the given size.
 function sampleImg(src: string, w: number, h: number, fit: 'contain' | 'cover'): Promise<ImageData> {
   return new Promise((res, rej) => {
     const img = new Image();
@@ -65,10 +69,12 @@ function sampleImg(src: string, w: number, h: number, fit: 'contain' | 'cover'):
   });
 }
 
+// Smooth easing curve that starts and ends slowly.
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
+// Animates a card from scattered particles into its final image.
 class ParticleLoader {
   private cv:       HTMLCanvasElement;
   private ctx:      CanvasRenderingContext2D;
@@ -88,6 +94,7 @@ class ParticleLoader {
     this.cv = cv; this.ctx = cv.getContext('2d')!; this.img = img; this.thumbSrc = thumbSrc;
   }
 
+  // Begins the converge animation for this card.
   async start() {
     const myGen = ++this.gen;
     cancelAnimationFrame(this.raf); this.raf = 0;
@@ -133,6 +140,7 @@ class ParticleLoader {
     this.raf = requestAnimationFrame(t => this._tick(t));
   }
 
+  // Tells the animation to finish early once loading is done.
   complete() {
     const p = this.ph;
     if (p === 'pulse' || p === 'done') return;
@@ -145,6 +153,7 @@ class ParticleLoader {
     }
   }
 
+  // Stops the animation and shows the plain image.
   cancel() {
     ++this.gen;
     cancelAnimationFrame(this.raf); this.raf = 0;
@@ -156,10 +165,12 @@ class ParticleLoader {
     this.img.style.opacity    = '1';
   }
 
+  // Brightens the particles on a beat while pulsing.
   beatHit(intensity: number) {
     if (this.ph === 'pulse') this.beatIntensity = Math.min(1, this.beatIntensity + intensity * 0.6);
   }
 
+  // Snaps the particles home and fades the real image in.
   private _enterPulse() {
     this.ph = 'pulse';
     for (const p of this.ps) { p.x = p.homeX; p.y = p.homeY; p.alpha = 1; }
@@ -167,6 +178,7 @@ class ParticleLoader {
     this.img.style.opacity    = '1';
   }
 
+  // Runs one animation frame and draws the particles.
   private _tick(now: number) {
     this.raf = requestAnimationFrame(t => this._tick(t));
     const el = now - this.t0;
@@ -222,7 +234,7 @@ class ParticleLoader {
   }
 }
 
-// Menu disintegration on song select
+// Menu break apart effect used when a card is chosen.
 
 const DI_SCALE    = 2;
 const DI_DURATION = 2000;
@@ -231,18 +243,22 @@ const DI_CSAMP    = 6;
 export interface DiParticle { x: number; y: number; r: number; g: number; b: number; }
 
 let lastMenuParticles: DiParticle[] = [];
+// Returns the points captured from the last menu.
 export function getLastMenuParticles(): DiParticle[] { return lastMenuParticles; }
 
+// Captures the current menu cards so the back transition can reuse them.
 export function primeMenuParticles(): DiParticle[] {
   lastMenuParticles = captureMenuParticles(_cardEls);
   return lastMenuParticles;
 }
 
+// Turns a hex colour string into red green blue numbers.
 function hexToRgb(hex: string): [number, number, number] {
   const m = hex.match(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
   return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [80, 80, 80];
 }
 
+// Reads each menu card into a list of coloured points.
 function captureMenuParticles(cardEls: HTMLDivElement[]): DiParticle[] {
   const out: DiParticle[] = [];
 
@@ -257,10 +273,9 @@ function captureMenuParticles(cardEls: HTMLDivElement[]): DiParticle[] {
     off.width = cw; off.height = ch;
     const oc = off.getContext('2d')!;
 
-    // Always pre-fill with the card theme colour so the canvas is never fully
-    // transparent. Without this, freshly-loaded cards (image not yet decoded,
-    // particle animation not yet started) produce an all-transparent bitmap and
-    // captureMenuParticles returns nothing — breaking the back transition.
+    // Fill with the card theme colour first so the canvas is never fully clear.
+    // A card whose image has not decoded yet would otherwise give back nothing
+    // and break the back transition.
     const [fr, fg, fb] = hexToRgb(getComputedStyle(card).getPropertyValue('--c').trim());
     oc.fillStyle = `rgb(${fr},${fg},${fb})`;
     oc.fillRect(0, 0, cw, ch);
@@ -294,6 +309,7 @@ function captureMenuParticles(cardEls: HTMLDivElement[]): DiParticle[] {
   return out;
 }
 
+// Blows the captured points apart and fades them out over time.
 function runDisintegration(particles: DiParticle[], onDone: () => void): () => void {
   const W = Math.ceil(window.innerWidth  / DI_SCALE);
   const H = Math.ceil(window.innerHeight / DI_SCALE);
@@ -331,6 +347,7 @@ function runDisintegration(particles: DiParticle[], onDone: () => void): () => v
   let raf: number;
   let cancelled = false;
 
+  // Stops the effect early and removes the overlay.
   function cancel() {
     if (cancelled) return;
     cancelled = true;
@@ -338,6 +355,7 @@ function runDisintegration(particles: DiParticle[], onDone: () => void): () => v
     overlay.remove();
   }
 
+  // Moves and draws every point for one frame.
   function tick(now: number) {
     if (cancelled) return;
     const progress = Math.min((now - start) / DI_DURATION, 1);
@@ -377,6 +395,7 @@ function runDisintegration(particles: DiParticle[], onDone: () => void): () => v
   return cancel;
 }
 
+// Returns the settings or credits label in the current language.
 function getUtilLabel(kind: string): string {
   const lang = getLanguage();
   if (kind === 'settings') return lang === 'en' ? 'Settings' : '設定';
@@ -387,6 +406,7 @@ function getUtilLabel(kind: string): string {
 let _cardEls: HTMLDivElement[] = [];
 let _items:   WheelItem[]      = [];
 
+// Returns a song name and artist in the current language.
 export function getSongNames(song: import('./songSelect').SongOption): { name: string; artist: string } {
   const lang = getLanguage();
   if (lang === 'ja') {
@@ -399,6 +419,7 @@ export function getSongNames(song: import('./songSelect').SongOption): { name: s
   return parseSong(song.title);
 }
 
+// Refreshes every card label when the language changes.
 function updateUtilityLabels() {
   _items.forEach((item, i) => {
     const card = _cardEls[i];
@@ -416,6 +437,7 @@ function updateUtilityLabels() {
   });
 }
 
+// Builds the 3D song wheel and wires up all of its controls.
 export function mountSphereSongSelect(
   items: WheelItem[],
   onSongSelect: (song: SongOption) => void,
@@ -462,7 +484,7 @@ export function mountSphereSongSelect(
     if (item.kind === 'song') {
       const { name, artist } = getSongNames(item.data);
       const color = COLORS[songColorIdx++ % COLORS.length];
-      const thumbnail = item.data.thumbnail || import.meta.env.BASE_URL + 'assets/placeholder_miku.png';
+      const thumbnail = proceduralThumbnail(item.data.url);
       card.className     = 'sss-card';
       card.style.cssText = `--c:${color}; transform:${baseTransform};`;
       card.innerHTML     = `
@@ -482,8 +504,8 @@ export function mountSphereSongSelect(
       card.innerHTML     = `<div class="sss-util-glyph"></div><div class="sss-util-label">${getUtilLabel(item.kind)}</div>`;
     }
 
-    // No per-card listener — activation handled in window onPointerUp so Android
-    // preserve-3d hit-test confusion (rotated cards intercepting events) can't block it.
+    // Cards have no click listener. Clicks are handled in the window pointer up
+    // so rotated cards on Android cannot swallow the event.
 
     inner.appendChild(card);
     cardEls.push(card);
@@ -501,6 +523,7 @@ export function mountSphereSongSelect(
 
   let cancelDi: (() => void) | null = null;
 
+  // Picks a song and plays the break apart effect.
   function selectSong(song: SongOption) {
     onSongSelect(song);
     root.style.pointerEvents = 'none';
@@ -513,6 +536,7 @@ export function mountSphereSongSelect(
     cancelDi = runDisintegration(diParticles, cleanup);
   }
 
+  // Opens settings or credits and plays the break apart effect.
   function selectUtility(callback: () => void) {
     callback();
     root.style.pointerEvents = 'none';
@@ -525,16 +549,18 @@ export function mountSphereSongSelect(
     cancelDi = runDisintegration(diParticles, cleanup);
   }
 
+  // Stops the break apart effect early and cleans up.
   function abortDisintegration() {
     if (cancelDi) {
       cancelDi();
       cancelDi = null;
     }
-    // Only clean up if the root is still in the DOM — the disintegration may
-    // have already finished naturally and called cleanup() itself.
+    // Only clean up if the wheel is still on the page. The effect may have
+    // already finished and cleaned up by itself.
     if (root.isConnected) cleanup();
   }
 
+  // Rotates the wheel so the given card becomes active.
   function snapTo(index: number) {
     loaders.get(activeIndex)?.cancel();
     activeIndex = ((index % n) + n) % n;
@@ -554,6 +580,7 @@ export function mountSphereSongSelect(
     }
   }
 
+  // Marks the active card and lets only it receive clicks.
   function updateActive() {
     cardEls.forEach((el, i) => {
       el.classList.toggle('sss-card--active', i === activeIndex);
@@ -561,6 +588,7 @@ export function mountSphereSongSelect(
     });
   }
 
+  // Eases the wheel toward its target angle each frame.
   function tick() {
     spinAngle += (targetAngle - spinAngle) * 0.1;
     inner.style.transform = `rotateY(${spinAngle}deg)`;
@@ -577,6 +605,7 @@ export function mountSphereSongSelect(
     });
   }));
 
+  // Finds the front most card under a screen point.
   function findClickedCardIndex(x: number, y: number): number | null {
     let bestIndex: number | null = null;
     let bestZ = -Infinity;
@@ -591,17 +620,20 @@ export function mountSphereSongSelect(
     return bestIndex;
   }
 
+  // Starts a drag when the pointer goes down.
   function onPointerDown(e: PointerEvent) {
     dragging = true; dragMoved = 0; lastX = e.clientX;
     downX = e.clientX; downY = e.clientY;
     scene.style.cursor = 'grabbing';
   }
+  // Spins the wheel while the pointer is dragged.
   function onPointerMove(e: PointerEvent) {
     if (!dragging) return;
     const dx = e.clientX - lastX;
     spinAngle += dx * 0.35; targetAngle = spinAngle;
     dragMoved += Math.abs(dx); lastX = e.clientX;
   }
+  // On release, snaps to a card or selects the active one.
   function onPointerUp() {
     if (!dragging) return;
     dragging = false; scene.style.cursor = 'grab';
@@ -624,14 +656,17 @@ export function mountSphereSongSelect(
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup',   onPointerUp);
 
+  // Ends the active card loading animation when loading finishes.
   function setLoading(on: boolean) {
     if (!on) loaders.get(activeIndex)?.complete();
   }
 
+  // Passes a beat to the active card so it pulses.
   function beat(intensity: number) {
     loaders.get(activeIndex)?.beatHit(intensity);
   }
 
+  // Removes the wheel and all of its listeners.
   function cleanup() {
     cancelAnimationFrame(raf);
     setMenuReflectLoading(-1, null);
@@ -642,6 +677,7 @@ export function mountSphereSongSelect(
     root.remove();
   }
 
+  // Fades the wheel back in and lets it take input again.
   function reveal() {
     root.style.transition = 'opacity 0.7s';
     root.style.opacity = '1';

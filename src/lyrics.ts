@@ -11,6 +11,7 @@ let loadedFont: Font | null = null;
 
 let layoutMaxLines = 1;
 
+// Returns how far a word reaches from its center on the x axis.
 export function getWordHalfExtentX(word: IWord): number {
   for (const [, pd] of phraseData) {
     const wd = pd.words.get(word);
@@ -19,6 +20,7 @@ export function getWordHalfExtentX(word: IWord): number {
   return 0;
 }
 
+// Returns half the width and height of the current lyric layout.
 export function getLayoutHalfExtents(): { halfH: number; halfW: number } {
   const isMobile  = window.innerWidth < window.innerHeight;
   const fontHalf  = isMobile ? 2.25 : 1.5;
@@ -27,6 +29,7 @@ export function getLayoutHalfExtents(): { halfH: number; halfW: number } {
   return { halfH, halfW };
 }
 
+// Loads the lyric font and calls back when it is ready.
 export function initLyrics(onReady: () => void) {
   const loader = new FontLoader();
   loader.load(import.meta.env.BASE_URL + 'MPLUS1-Black.typeface.json', (font) => {
@@ -35,8 +38,10 @@ export function initLyrics(onReady: () => void) {
   });
 }
 
+// Returns the loaded font or null if it is not ready yet.
 export function getFont(): Font | null { return loadedFont; }
 
+// Picks random points spread evenly over the surface of a shape.
 export function sampleSurface(geo: THREE.BufferGeometry, count: number): Float32Array {
   const pos      = geo.attributes.position as THREE.BufferAttribute;
   const index    = geo.index;
@@ -76,6 +81,7 @@ type FadeEntry = { current: number; target: number };
 const fadingMeshes = new Map<THREE.Mesh, FadeEntry>();
 let animRaf = 0;
 
+// Eases every fading mesh toward its target opacity each frame.
 function tickFade() {
   let keepGoing = false;
   for (const [mesh, state] of fadingMeshes) {
@@ -96,6 +102,7 @@ function tickFade() {
   animRaf = keepGoing || fadingMeshes.size > 0 ? requestAnimationFrame(tickFade) : 0;
 }
 
+// Fades a mesh in and adds it to the scene.
 function fadeIn(mesh: THREE.Mesh) {
   if (!mesh.parent) scene.add(mesh);
   const entry = fadingMeshes.get(mesh);
@@ -104,6 +111,7 @@ function fadeIn(mesh: THREE.Mesh) {
   if (!animRaf) animRaf = requestAnimationFrame(tickFade);
 }
 
+// Fades a mesh out and removes it once it is gone.
 function fadeOut(mesh: THREE.Mesh) {
   if (!mesh.parent) return;
   const entry = fadingMeshes.get(mesh);
@@ -112,6 +120,7 @@ function fadeOut(mesh: THREE.Mesh) {
   if (!animRaf) animRaf = requestAnimationFrame(tickFade);
 }
 
+// Removes all lyric meshes right away with no fade.
 export function clearLyricMeshes() {
   cancelAnimationFrame(animRaf);
   animRaf = 0;
@@ -131,6 +140,7 @@ export function clearLyricMeshes() {
   currentDisplayedWord = null;
 }
 
+// Fades out the word that is currently shown.
 export function clearCurrentWord() {
   if (!currentDisplayedWord) return;
   for (const [, pd] of phraseData) {
@@ -145,6 +155,7 @@ export function clearCurrentWord() {
   currentDisplayedWord = null;
 }
 
+// Creates the glass material used for each lyric character.
 function makeCharMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     vertexShader:   lyricGlassVert,
@@ -184,6 +195,7 @@ type PhraseData = {
 const phraseData = new Map<IPhrase, PhraseData>();
 let currentDisplayedWord: IWord | null = null;
 
+// Shows a word by sending particles to its letters and fading them in.
 export function setWord(word: IWord) {
   for (const [, pd] of phraseData) {
     const wd = pd.words.get(word);
@@ -220,9 +232,11 @@ export function setWord(word: IWord) {
   }
 }
 
+// Not used. Character timing is handled inside setWord.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function setChar(_char: IChar) {}
 
+// Fades out every character in a phrase.
 export function clearPhrase(phrase: IPhrase) {
   const pd = phraseData.get(phrase);
   if (!pd) return;
@@ -237,6 +251,7 @@ let staticGeos:   THREE.BufferGeometry[] = [];
 let staticMeshes: THREE.Mesh[]           = [];
 let staticGen = 0;
 
+// Fades out and clears the static text lines.
 export function clearStaticText() {
   ++staticGen;
   for (const geo  of staticGeos)   geo.dispose();
@@ -245,6 +260,7 @@ export function clearStaticText() {
   staticMeshes = [];
 }
 
+// Shows lines of static text one after another with particles.
 export function displayStaticText(lines: string[], scale = 1) {
   if (!loadedFont) return;
   clearStaticText();
@@ -316,6 +332,7 @@ export function displayStaticText(lines: string[], scale = 1) {
   }
 }
 
+// Lays out all phrases into lines and builds their character meshes.
 export function buildLayout(phrases: IPhrase[]) {
   if (!loadedFont) return;
 

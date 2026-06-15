@@ -54,14 +54,14 @@ controls.target.set(0, 0, 0);
 controls.minDistance = 22;   // just outside the outer glass sphere (r=21)
 controls.maxDistance = 68;
 controls.rotateSpeed = -1;
-// Prevent camera from orbiting behind the text (z=0 plane).
-// ±0.5π keeps the camera in the front hemisphere with a little side-view wiggle.
+// Keep the camera in front of the text so it cannot swing around behind it.
 controls.minAzimuthAngle = -Math.PI * 0.5;
 controls.maxAzimuthAngle =  Math.PI * 0.5;
 controls.minPolarAngle   =  Math.PI * 0.2;
 controls.maxPolarAngle   =  Math.PI * 0.8;
 
 const _drawBuf = new THREE.Vector2();
+// Tells the aurora shader the current drawing buffer size.
 function syncAuroraResolution() {
   renderer.getDrawingBufferSize(_drawBuf);
   setAuroraResolution(_drawBuf.x, _drawBuf.y);
@@ -144,16 +144,17 @@ const dirLight = new THREE.DirectionalLight(0x88ccff, 1.5);
 dirLight.position.set(2, 4, 3);
 scene.add(dirLight);
 
-// Aurora sky dome — on layer 0 so cube cameras capture it for glass reflections
+// Aurora sky dome. It sits on layer 0 so the reflection cameras can see it.
 scene.add(auroraMesh);
 
 scene.add(particlePoints);
 
-// Segment count = number of carousel panels so each flat face aligns with one card.
+// One cylinder side per carousel card so each flat face lines up with a card.
 export const menuState = { cylAngle: 0 };
 
 let cylSegments = 8;
 
+// Builds the open sided cylinder used as the carousel of cards.
 function buildCylGeo(n: number, r: number, h: number): THREE.BufferGeometry {
   const raw = new THREE.CylinderGeometry(r, r, h, n, 1, true);
   const geo = raw.toNonIndexed();
@@ -162,6 +163,7 @@ function buildCylGeo(n: number, r: number, h: number): THREE.BufferGeometry {
   return geo;
 }
 
+// Works out the cylinder radius so cards match the screen size of the CSS cards.
 function computeCylRadius(n: number): number {
   const W = window.innerWidth, H = window.innerHeight;
   const tanHFovX = Math.tan(Math.PI / 6) * (W / H); // tan(half horizontal FOV)
@@ -172,6 +174,7 @@ function computeCylRadius(n: number): number {
   return Math.max(4, Math.min(r, 20));
 }
 
+// Works out the cylinder height to match the screen size of the CSS cards.
 function computeCylHeight(n: number, r: number): number {
   const d = 58 - r * Math.cos(Math.PI / n); // camera-to-face distance
   const cssFullH = 190 * (900 / (900 - 280));
@@ -204,7 +207,7 @@ cylinderMesh.renderOrder = 0;
 cylinderMesh.visible = false;
 scene.add(cylinderMesh);
 
-/** Rebuild the cylinder with n sides, sized to match the CSS carousel cards on screen. */
+// Rebuilds the cylinder with the given number of sides.
 export function setCylinderSegments(n: number) {
   const old = cylinderMesh.geometry;
   const r = computeCylRadius(n);
@@ -215,20 +218,21 @@ export function setCylinderSegments(n: number) {
   cylDims.r = r; cylDims.h = h; cylDims.n = n;
 }
 
+// Sets how see through the carousel cylinder is.
 export function setCylinderOpacity(v: number) {
   (cylinderMesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = v;
 }
 
 let menuMode = false;
-/** True while the main carousel menu is shown — hides the glass sphere so only the cylinder shows. */
+// Turns the menu on or off. The menu hides the glass sphere and shows the cylinder.
 export function setMenuMode(active: boolean) { menuMode = active; }
 
 let settingsMode = false;
-/** True while the settings panel is open — the sphere drifts slowly; particles are unaffected. */
+// Turns settings mode on or off. In settings the sphere drifts slowly.
 export function setSettingsMode(active: boolean) { settingsMode = active; }
 
 let songMode = false;
-/** True while a song is playing — the sphere rotates if sphere spin is enabled. */
+// Turns song mode on or off and locks the camera controls during a song.
 export function setSongMode(active: boolean) {
   songMode = active;
   controls.enableRotate = !active;
@@ -236,9 +240,10 @@ export function setSongMode(active: boolean) {
 }
 
 let hideOuterSphere = false;
-/** Suppresses the outer glass sphere regardless of menu/song mode (use during back transitions). */
+// Forces the outer sphere to stay hidden. Used during back transitions.
 export function setHideOuterSphere(v: boolean) { hideOuterSphere = v; }
 
+// Sets how faded the outer sphere is.
 export function setOuterSphereFade(v: number) { glassOuterUniforms.uFade.value = v; }
 
 const fadeScene  = new THREE.Scene();
@@ -249,6 +254,7 @@ fadeScene.add(new THREE.Mesh(
 const fadeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
 let beatIntensity = 0;
+// Flashes the glass brighter on a beat. It decays on its own each frame.
 export function triggerBeat(strength: number) {
   beatIntensity = strength;
 }
@@ -256,15 +262,18 @@ export function triggerBeat(strength: number) {
 let rippleIdx    = 0;
 let chorusTarget = 0;
 
+// Sets how far through a beat pulse the glass is, from zero to one.
 export function setBeatProgress(v: number) {
   if (getGlassFx() === 'off') return;
   sharedGlassUniforms.uBeatProgress.value = v;
 }
 
+// Sets the target chorus strength the glass eases toward.
 export function setChorusFactor(v: number) {
   chorusTarget = v;
 }
 
+// Sends a ripple across the glass from a direction on a strong beat.
 export function fireDownbeat(strength: number, dir: THREE.Vector3) {
   if (getGlassFx() === 'off') return;
   const slot = rippleIdx % 4;
@@ -280,7 +289,7 @@ let activeRenderTarget: THREE.WebGLRenderTarget = renderTarget;
 let outerSphereActive = OUTER_SPHERE;
 let detailHigh = true;
 
-/** Immediately re-render the cubemap with the current scene (call after removing objects that appeared in reflections). */
+// Redraws the reflection cube right now. Call it after removing reflected objects.
 export function flushCubemapNow() {
   sphereMesh.visible      = false;
   largerSphereMesh.visible = false;
@@ -290,13 +299,14 @@ export function flushCubemapNow() {
   auroraMesh.visible = true;
 }
 
+// Switches between low and high detail by picking cube maps and shader settings.
 export function applyDetailMode(mode: DetailMode) {
   if (mode === 'low') {
     detailHigh          = false;
     activeCubeCamera    = cubeCameraLow;
     activeCubeInterval  = 8;
     activeRenderTarget  = renderTargetHalf;
-    // Both spheres share the low-res cubemap; no separate outer-sphere passes.
+    // Both spheres share the small cube map so there is no extra outer pass.
     glassInnerUniforms.uEnvMap.value      = cubeRenderTargetLow.texture;
     glassOuterUniforms.uEnvMap.value      = cubeRenderTargetLow.texture;
     glassInnerUniforms.uDetailLevel.value = 0.0;
@@ -322,6 +332,7 @@ const clock = new THREE.Clock();
 let elapsed  = 0;
 let cubeFrame = 0;
 
+// The main render loop. Runs every frame to update and draw the whole scene.
 export function animate() {
   requestAnimationFrame(animate);
   const delta = clock.getDelta();
@@ -332,8 +343,7 @@ export function animate() {
   controls.update();
 
   if (cylinderMesh.visible) {
-    // Face 0 of the cylinder has its outward normal at π/n — offset by −π/n so it
-    // points at angle 0 (toward the camera) when spinAngle=0 (panel 0 at front).
+    // Rotate the cylinder so the first card faces the camera when the angle is zero.
     cylinderMesh.rotation.y     = -Math.PI / cylSegments + menuState.cylAngle;
     sphereMesh.rotation.y       = menuState.cylAngle;
     largerSphereMesh.rotation.y = menuState.cylAngle;
@@ -359,7 +369,7 @@ export function animate() {
   const updateCube = (cubeFrame % activeCubeInterval === 0);
   cubeFrame++;
 
-  // Cubemap passes — hide expensive objects that don't need to be reflected.
+  // Reflection passes. Hide costly objects that do not need to be reflected.
   sphereMesh.visible  = false;
   largerSphereMesh.visible = false;
   auroraMesh.visible  = false; // aurora is the main perf cost: skip 12 face renders
