@@ -4,10 +4,10 @@ uniform float uTime;
 uniform float uVocalAmp;
 uniform float uChorusFactor;
 uniform vec3  uChordTint;
-uniform float     uChordStrength;
-uniform float     uMenuReflect;
+uniform float uChordStrength;
+uniform float uMenuReflect;
 uniform sampler2D uMenuTex;
-uniform vec2      uResolution;
+uniform vec2 uResolution;
 varying vec3 vWorldPos;
 
 const vec3 MIKU_TEAL = vec3(0.13, 0.86, 0.80);
@@ -42,8 +42,8 @@ float fbm(vec2 p) {
     return v;
 }
 
-// dir:   normalised world direction
-// t:     pre-scaled time
+// dir: normalised world direction
+// t: pre-scaled time
 // bandY: animated base altitude of this curtain
 // seed:  per-band variation constant
 // drift: per-band 2-D drift in the xz plane (X = left/right, Z = front/back)

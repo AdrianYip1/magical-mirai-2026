@@ -38,8 +38,8 @@ let readRT  = makeRT();
 let writeRT = makeRT();
 let prevTex: THREE.Texture = makeInitialState();
 
-const targetData     = new Float32Array(COUNT * 4);
-const targetTex      = new THREE.DataTexture(targetData, WIDTH, WIDTH, THREE.RGBAFormat, THREE.FloatType);
+const targetData = new Float32Array(COUNT * 4);
+const targetTex = new THREE.DataTexture(targetData, WIDTH, WIDTH, THREE.RGBAFormat, THREE.FloatType);
 targetTex.needsUpdate = true;
 
 const assignmentData = new Float32Array(COUNT * 4);
@@ -47,7 +47,7 @@ const assignmentTex  = new THREE.DataTexture(assignmentData, WIDTH, WIDTH, THREE
 assignmentTex.needsUpdate = true;
 
 const colorData = new Float32Array(COUNT * 4);
-const colorTex  = new THREE.DataTexture(colorData, WIDTH, WIDTH, THREE.RGBAFormat, THREE.FloatType);
+const colorTex = new THREE.DataTexture(colorData, WIDTH, WIDTH, THREE.RGBAFormat, THREE.FloatType);
 colorTex.needsUpdate = true;
 
 let elapsedTime = 0;
@@ -87,8 +87,8 @@ export function activateWordParticles(indices: Uint32Array, samples: Float32Arra
     }
   }
   assignmentTex.needsUpdate = true;
-  targetTex.needsUpdate     = true;
-  colorTex.needsUpdate      = true;
+  targetTex.needsUpdate = true;
+  colorTex.needsUpdate = true;
 }
 
 // Turns off the given particles so they drift away.
@@ -160,7 +160,7 @@ const renderMaterial = new THREE.ShaderMaterial({
     uEnvMap: { value: null },
     uAssignmentTex: { value: assignmentTex },
     uColorTex: { value: colorTex },
-    uDpr:        { value: Math.min(window.devicePixelRatio || 1, 2) },
+    uDpr: { value: Math.min(window.devicePixelRatio || 1, 2) },
     uPointScale: { value: window.innerWidth < window.innerHeight ? 2.0 : 3.0 },
     uGlobalAlpha:{ value: 1.0 },
   },
@@ -191,7 +191,7 @@ export function update(renderer: THREE.WebGLRenderer, elapsed: number, delta: nu
   renderer.setRenderTarget(null);
 
   const tmp = readRT;
-  readRT  = writeRT;
+  readRT = writeRT;
   writeRT = tmp;
   prevTex = readRT.texture;
 

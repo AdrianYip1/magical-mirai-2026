@@ -4,10 +4,10 @@ let _furigana = (() => {
   return localStorage.getItem(FURIGANA_KEY) === 'true';
 })();
 
-// Returns whether furigana reading aids are turned on.
+// Returns whether kana reading aids are turned on.
 export const getFuriganaEnabled = (): boolean => _furigana;
 
-// Saves whether furigana reading aids should show.
+// Saves whether kana reading aids should show.
 export function setFuriganaEnabled(v: boolean): void {
   _furigana = v;
   try { localStorage.setItem(FURIGANA_KEY, String(v)); } catch {}

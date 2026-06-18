@@ -13,9 +13,10 @@ import { clearAllParticles, activateWordParticles, setFadeRate, setParticleAlpha
 import * as previewAudio from './previewAudio';
 import { getVolume } from './volume';
 import { enterSettings, leaveSettings, settingsCameraZ, settingsCameraY } from './settingsScene';
+import { getLanguage } from './language';
 
 // TextAlive sometimes rejects a promise we cannot reach from our own load call.
-// Swallow that noise so it does not show up as an uncaught error. Our own catch
+// Hide that noise so it does not show up as an uncaught error. Our own catch
 // already handles a failed load.
 window.addEventListener('unhandledrejection', (e) => {
   const msg = String(e.reason?.message ?? e.reason ?? '');
@@ -46,7 +47,7 @@ previewAudio.hydrateFromCache(songs.map(s => s.url));
 // loading a few seconds after the tap. Playing this silent clip during the first
 // tap unlocks audio for the rest of the visit so later plays are allowed.
 function makeSilentWav(): string {
-  const sampleRate = 8000, samples = 80; // ~0.01s of silence
+  const sampleRate = 8000, samples = 80; // about 0.01s of silence
   const buf = new ArrayBuffer(44 + samples);
   const v = new DataView(buf);
   const w = (off: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
@@ -84,7 +85,7 @@ function findChorusStart(): number {
   return 30000;
 }
 
-let currentUrl: string | null = null;   // song currently loaded / loading
+let currentUrl: string | null = null; // song currently loaded / loading
 let loading = false; // a createFromSongUrl is in flight
 let ready = false; // timer ready for currentUrl
 let previewing = false; // a TextAlive preview is playing
@@ -144,14 +145,14 @@ function reconcile() {
 }
 
 let setPreviewLoading: (on: boolean) => void = () => {};
-let previewGen      = 0;
-let spinnerTimer:    number | undefined;
+let previewGen = 0;
+let spinnerTimer: number | undefined;
 let spinnerMaxTimer: number | undefined;
 // Shows the loading spinner after a short delay and hides it after a timeout.
 function showLoadingSoon(gen: number) {
   clearTimeout(spinnerTimer);
   clearTimeout(spinnerMaxTimer);
-  spinnerTimer    = window.setTimeout(() => { if (gen === previewGen) setPreviewLoading(true); }, 200);
+  spinnerTimer = window.setTimeout(() => { if (gen === previewGen) setPreviewLoading(true); }, 200);
   spinnerMaxTimer = window.setTimeout(() => { if (gen === previewGen) setPreviewLoading(false); }, 15000); // never stick
 }
 // Hides the loading spinner for the given request.
@@ -163,15 +164,15 @@ function hideLoading(gen: number) {
 }
 
 let wordCameraZTarget = 12;
-let wordCameraZRaf    = 0;
-let phraseCameraZMax  = 0;
+let wordCameraZRaf = 0;
+let phraseCameraZMax = 0;
 
 // Eases the camera distance toward its target each frame.
 function tickWordCameraZ() {
   const diff = wordCameraZTarget - camera.position.z;
   if (Math.abs(diff) < 0.05) {
     camera.position.z = wordCameraZTarget;
-    wordCameraZRaf    = 0;
+    wordCameraZRaf = 0;
     return;
   }
   camera.position.z += diff * 0.06;
@@ -187,9 +188,9 @@ function setWordCameraZ(z: number) {
 
 let flyRaf = 0;
 let flyGen = 0;
-const flyTo       = new THREE.Vector3();
-const flyLookAt   = new THREE.Vector3();
-const flyFromPos  = new THREE.Vector3();
+const flyTo = new THREE.Vector3();
+const flyLookAt = new THREE.Vector3();
+const flyFromPos = new THREE.Vector3();
 const flyFromLook = new THREE.Vector3();
 
 // Smoothly flies the camera to a new position and look target.
@@ -231,10 +232,10 @@ function computeSongCameraZ(): number {
   const fovHalf = (camera.fov / 2) * (Math.PI / 180);
   const aspect  = canvas.clientWidth / canvas.clientHeight;
 
-  const MOBILE_FILL  = 0.70;
+  const MOBILE_FILL = 0.70;
   const MOBILE_MIN_Z = 9;
-  const PC_FILL   = 0.70;
-  const PC_MIN_Z  = 9;
+  const PC_FILL = 0.70;
+  const PC_MIN_Z = 9;
 
   const isMobileView = window.innerWidth < window.innerHeight;
   const minZ = isMobileView ? MOBILE_MIN_Z : PC_MIN_Z;
@@ -297,7 +298,7 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       focusedUrl = song.url;
       ++backGen;
       canvas.style.transition = '';
-      canvas.style.opacity    = '1';
+      canvas.style.opacity = '1';
       setHideOuterSphere(false);
       setMenuMode(false);
       setOuterSphereFade(1);
@@ -317,11 +318,11 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       });
     },
     () => {
-      utilityView       = 'settings';
+      utilityView = 'settings';
       selectedSongIndex = songs.length;
       ++backGen;
       canvas.style.transition = '';
-      canvas.style.opacity    = '1';
+      canvas.style.opacity = '1';
       setHideOuterSphere(false);
       setMenuMode(false);
       setOuterSphereFade(1);
@@ -332,50 +333,80 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
       controls.minDistance = 1;
       controls.maxDistance = 90;
       flushCubemapNow();
-      backBtn.style.display   = 'block';
+      backBtn.style.display = 'block';
       clearAllParticles(); clearLyricMeshes();
       flyCamera(settingsCameraY(camera, canvas), settingsCameraZ(camera, canvas),
                 settingsCameraY(camera, canvas), 2000,
                 () => enterSettings(camera, canvas, controls));
     },
     () => {
-      utilityView       = 'credits';
+      utilityView = 'credits';
       selectedSongIndex = songs.length + 1;
       ++backGen;
       canvas.style.transition = '';
-      canvas.style.opacity    = '1';
+      canvas.style.opacity = '1';
       setHideOuterSphere(false);
       setMenuMode(false);
       setOuterSphereFade(1);
       setSettingsMode(true);
       cylinderMesh.visible = false;
       {
-        const creditLines = [
-          'HOLOFRAGMENT',
-          'Magical Mirai 2026',
-          'Adrian Yip  Eason Chou',
-          '',
-          'Three.js  TypeScript  Vite',
-          'TextAlive App API  AIST RecMus',
-          'Hatsune Miku © Crypton Future Media',
-          '',
-          'Answer Me  imie',
-          'After the Curtain  Rulmry',
-          'Shutter Chance  Yamiagari',
-          "The World's Last Music Band",
-          'Natsuyama Yotsugi × Dopamine',
-          'Toritsukulogy  Tsuruzou',
-          'TAKEOVER  Twinfield',
-        ];
+        const creditLines = getLanguage() === 'ja'
+          ? [
+              'HOLOFRAGMENT',
+              'マジカルミライ 2026',
+              'Adrian Yip   Eason Chou',
+              '',
+              'Three.js  TypeScript  Vite',
+              'TextAlive App API  AIST RecMus',
+              '初音ミク © Crypton Future Media',
+              '',
+              '楽曲提供',
+              '',
+              'こたえて / imie',
+              '',
+              'アフター・ザ・カーテン / Rulmry',
+              '',
+              'シャッターチャンス / 夜未アガリ',
+              '',
+              '世界最後の音楽隊 /',
+              '夏山よつぎ × ど〜ぱみん',
+              '',
+              'トリツクロジー / 鶴三',
+              '',
+              'TAKEOVER / Twinfield',
+            ]
+          : [
+              'HOLOFRAGMENT',
+              'Magical Mirai 2026',
+              'Adrian Yip   Eason Chou',
+              '',
+              'Three.js  TypeScript  Vite',
+              'TextAlive App API  AIST RecMus',
+              'Hatsune Miku © Crypton Future Media',
+              '',
+              'Answer Me by imie',
+              '',
+              'After the Curtain by Rulmry',
+              '',
+              'Shutter Chance by Yamiagari',
+              '',
+              'The Last March on Earth by',
+              'Natsuyama Yotsugi × Dopamine',
+              '',
+              'Toritsukulogy by Tsuruzou',
+              '',
+              'TAKEOVER by Twinfield',
+            ];
         const camZ = 23;
         controls.maxDistance = 90;
         controls.enabled = false;
         flushCubemapNow();
-        backBtn.style.display   = 'block';
+        backBtn.style.display = 'block';
         clearAllParticles(); clearLyricMeshes();
         setFadeRate(0);
-        const fovHalf   = (camera.fov / 2) * (Math.PI / 180);
-        const halfH     = Math.tan(fovHalf) * camZ * 0.55;
+        const fovHalf = (camera.fov / 2) * (Math.PI / 180);
+        const halfH = Math.tan(fovHalf) * camZ * 0.62;
         const textScale = halfH / (creditLines.length * 1.3);
         flyCamera(0, camZ, 0, 2000, () => displayStaticText(creditLines, textScale));
       }
@@ -429,8 +460,8 @@ function triggerBack() {
   if (!inPlayback && utilityView === null) return;
   cancelFly();
   const wasInPlayback = inPlayback;
-  const wasUtility    = utilityView;
-  inPlayback  = false;
+  const wasUtility = utilityView;
+  inPlayback = false;
   utilityView = null;
   backBtn.style.display = 'none';
 
@@ -452,12 +483,12 @@ function triggerBack() {
     if (wasInPlayback) {
       setSongMode(false);
       cancelAnimationFrame(wordCameraZRaf);
-      wordCameraZRaf    = 0;
+      wordCameraZRaf = 0;
       wordCameraZTarget = 58;
     }
   }
 
-  controls.enabled     = false;
+  controls.enabled = false;
   controls.minDistance = 22;
   controls.maxDistance = 90;
 
@@ -483,14 +514,14 @@ function triggerBack() {
   wheel = remountMenu(selectedSongIndex, true);
   prevWheel.cleanup();
   const myWheel = wheel;
-  const myGen   = ++backGen;
+  const myGen = ++backGen;
 
   menuState.cylAngle = -selectedSongIndex * (2 * Math.PI / wheelItems.length);
   setHideOuterSphere(false);
   setCylinderOpacity(0);
   cylinderMesh.visible = true;
 
-  const FLY_MS    = 2000;
+  const FLY_MS = 2000;
   const REVEAL_MS = 700;
 
   camera.position.copy(flyFromPos);
@@ -544,12 +575,12 @@ function buildMenuTargets(menuParticles: DiParticle[]): { indices: Uint32Array; 
   const samples = new Float32Array(TOTAL * 4);
   const colors  = new Float32Array(TOTAL * 4);
 
-  const plane     = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+  const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   const raycaster = new THREE.Raycaster();
-  const hit       = new THREE.Vector3();
-  const ndc       = new THREE.Vector2();
+  const hit = new THREE.Vector3();
+  const ndc = new THREE.Vector2();
   const menuCount = menuParticles.length;
-  const worldPos  = new Float32Array(menuCount * 3);
+  const worldPos = new Float32Array(menuCount * 3);
 
   for (let j = 0; j < menuCount; j++) {
     const p = menuParticles[j];
@@ -559,7 +590,7 @@ function buildMenuTargets(menuParticles: DiParticle[]): { indices: Uint32Array; 
     );
     raycaster.setFromCamera(ndc, camera);
     if (raycaster.ray.intersectPlane(plane, hit)) {
-      worldPos[j * 3]     = hit.x;
+      worldPos[j * 3] = hit.x;
       worldPos[j * 3 + 1] = hit.y;
       worldPos[j * 3 + 2] = hit.z;
     }
@@ -575,11 +606,11 @@ function buildMenuTargets(menuParticles: DiParticle[]): { indices: Uint32Array; 
   for (let i = 0; i < TOTAL; i++) {
     indices[i] = pool[i];
     const j = i % menuCount;
-    samples[i * 4]     = worldPos[j * 3];
+    samples[i * 4] = worldPos[j * 3];
     samples[i * 4 + 1] = worldPos[j * 3 + 1];
     samples[i * 4 + 2] = worldPos[j * 3 + 2];
     samples[i * 4 + 3] = 0;
-    colors[i * 4]     = menuParticles[j].r / 255;
+    colors[i * 4] = menuParticles[j].r / 255;
     colors[i * 4 + 1] = menuParticles[j].g / 255;
     colors[i * 4 + 2] = menuParticles[j].b / 255;
     colors[i * 4 + 3] = 1.0;
@@ -589,12 +620,13 @@ function buildMenuTargets(menuParticles: DiParticle[]): { indices: Uint32Array; 
 }
 
 let songEndFired = false;
-let currentWord:   IWord   | null = null;
-let currentChar:   IChar   | null = null;
+let currentWord: IWord | null = null;
+let currentChar: IChar | null = null;
 let currentPhrase: IPhrase | null = null;
-let currentBeat:   IBeat   | null = null;
-let currentChord:  IChord  | null = null;
+let currentBeat: IBeat | null = null;
+let currentChord: IChord | null = null;
 
+// Not used -> This was planned to be for the aurora background, where it would change 
 const SEMITONES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const FLAT_MAP: Record<string,string> = {
   Db:'C#',Eb:'D#',Fb:'E',Gb:'F#',Ab:'G#',Bb:'A#',Cb:'B',
@@ -614,8 +646,8 @@ function chordToRgb(name: string): [number, number, number] {
   let root = name.length > 1 && (name[1] === '#' || name[1] === 'b')
     ? name.slice(0, 2) : name[0];
   root = FLAT_MAP[root] ?? root;
-  const idx   = SEMITONES.indexOf(root);
-  const hue   = idx >= 0 ? (idx / 12) * 360 : 0;
+  const idx = SEMITONES.indexOf(root);
+  const hue = idx >= 0 ? (idx / 12) * 360 : 0;
   const minor = /m(?!aj)/i.test(name.slice(root.length));
   const s = minor ? 0.65 : 0.85;
   const l = minor ? 0.48 : 0.58;
@@ -634,20 +666,20 @@ function showIntro() {
 
   const scanlines = document.createElement('div');
   Object.assign(scanlines.style, {
-    position:    'fixed',
-    inset:       '0',
+    position: 'fixed',
+    inset: '0',
     pointerEvents: 'none',
-    zIndex:      '5',
-    background:  'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.18) 2px,rgba(0,0,0,0.18) 4px)',
-    opacity:     '0',
-    transition:  'opacity 0.4s',
+    zIndex: '5',
+    background: 'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.18) 2px,rgba(0,0,0,0.18) 4px)',
+    opacity: '0',
+    transition: 'opacity 0.4s',
   });
   document.body.appendChild(scanlines);
   requestAnimationFrame(() => { scanlines.style.opacity = '1'; });
 
   const introLines = ['HOLOFRAGMENT', '初音ミク', 'Magical Mirai 2026'];
-  const fovHalf   = (camera.fov / 2) * (Math.PI / 180);
-  const halfH     = Math.tan(fovHalf) * 58;
+  const fovHalf = (camera.fov / 2) * (Math.PI / 180);
+  const halfH = Math.tan(fovHalf) * 58;
   const textScale = (halfH * 0.55) / (introLines.length * 2.6);
 
   particlePoints.visible = true;
@@ -735,7 +767,7 @@ player.addListener({
       setTimeout(() => { if (inPlayback) triggerBack(); }, 2000);
     }
 
-    const chorus   = player.findChorus(position);
+    const chorus = player.findChorus(position);
     const inChorus = !!chorus;
 
     const beat = player.findBeat(position);
@@ -799,11 +831,11 @@ player.addListener({
         if (word) {
           setWord(word);
           if (focusedUrl) {
-            const fovHalf  = (camera.fov / 2) * (Math.PI / 180);
-            const aspect   = canvas.clientWidth / canvas.clientHeight;
-            const halfX    = getWordHalfExtentX(word);
+            const fovHalf = (camera.fov / 2) * (Math.PI / 180);
+            const aspect = canvas.clientWidth / canvas.clientHeight;
+            const halfX = getWordHalfExtentX(word);
             const zForWord = halfX / (Math.tan(fovHalf) * aspect * 0.70);
-            const baseZ    = effectiveSongCameraZ(focusedUrl);
+            const baseZ = effectiveSongCameraZ(focusedUrl);
             phraseCameraZMax = Math.max(phraseCameraZMax, zForWord, baseZ);
             setWordCameraZ(phraseCameraZMax);
           }

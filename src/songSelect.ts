@@ -3,6 +3,10 @@ export interface SongOption {
   titleJa?: string;
   artistJa?: string;
   url: string;
+  // Cover art path relative to the build base (e.g. 'assets/curtain.jpg').
+  // When set, it replaces the procedural card art for the thumbnail, the
+  // loading particles, and the menu reflection.
+  image?: string;
   videoIds?: {
     beatId?: number;
     chordId?: number;

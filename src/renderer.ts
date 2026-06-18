@@ -99,35 +99,35 @@ cubeLargeCamera.layers.enable(1);
 scene.add(cubeLargeCamera);
 
 const sharedGlassUniforms = {
-  uBeatProgress:   { value: 0.0 },
-  uChorusFactor:   { value: 0.0 },
-  uTime:           { value: 0.0 },
-  uRippleTime:     { value: new Float32Array(4) },
+  uBeatProgress: { value: 0.0 },
+  uChorusFactor: { value: 0.0 },
+  uTime: { value: 0.0 },
+  uRippleTime: { value: new Float32Array(4) },
   uRippleStrength: { value: new Float32Array(4) },
-  uRippleDir:      { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] },
+  uRippleDir: { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] },
 };
 
 export const glassInnerUniforms = {
-  uCameraPos:    { value: camera.position },
+  uCameraPos: { value: camera.position },
   uBeatIntensity:{ value: 0.0 },
-  uEnvMap:       { value: cubeRenderTarget.texture },
+  uEnvMap: { value: cubeRenderTarget.texture },
   uSceneTexture: { value: null as THREE.Texture | null },
-  uRadius:       { value: SPHERE_RADIUS },
-  uDetailLevel:  { value: 1.0 },
-  uFill:         { value: 0.0 },
-  uFade:         { value: 1.0 },
+  uRadius: { value: SPHERE_RADIUS },
+  uDetailLevel: { value: 1.0 },
+  uFill: { value: 0.0 },
+  uFade: { value: 1.0 },
   ...sharedGlassUniforms,
 };
 
 export const glassOuterUniforms = {
-  uCameraPos:    { value: camera.position },
+  uCameraPos: { value: camera.position },
   uBeatIntensity:{ value: 0.0 },
-  uEnvMap:       { value: cubeLargeRenderTarget.texture },
+  uEnvMap: { value: cubeLargeRenderTarget.texture },
   uSceneTexture: { value: null as THREE.Texture | null },
-  uRadius:       { value: SPHERE_RADIUS * 3 },
-  uDetailLevel:  { value: 1.0 },
-  uFill:         { value: 0.0 },
-  uFade:         { value: 1.0 },
+  uRadius: { value: SPHERE_RADIUS * 3 },
+  uDetailLevel: { value: 1.0 },
+  uFill: { value: 0.0 },
+  uFade: { value: 1.0 },
   ...sharedGlassUniforms,
 };
 
@@ -192,15 +192,15 @@ export const cylinderMesh = new THREE.Mesh(
     vertexShader:   lyricGlassVert,
     fragmentShader: lyricGlassFrag,
     uniforms: {
-      uCameraPos:     glassInnerUniforms.uCameraPos,
-      uEnvMap:        glassInnerUniforms.uEnvMap,
+      uCameraPos: glassInnerUniforms.uCameraPos,
+      uEnvMap: glassInnerUniforms.uEnvMap,
       uBeatIntensity: glassInnerUniforms.uBeatIntensity,
-      uOpacity:       { value: 0.7 },
-      uFill:          { value: 1.0 },
+      uOpacity: { value: 0.7 },
+      uFill: { value: 1.0 },
     },
     transparent: true,
-    depthWrite:  false,
-    side:        THREE.DoubleSide,
+    depthWrite: false,
+    side: THREE.DoubleSide,
   }),
 );
 cylinderMesh.renderOrder = 0;
@@ -236,7 +236,7 @@ let songMode = false;
 export function setSongMode(active: boolean) {
   songMode = active;
   controls.enableRotate = !active;
-  controls.enablePan    = !active;
+  controls.enablePan = !active;
 }
 
 let hideOuterSphere = false;
@@ -246,7 +246,7 @@ export function setHideOuterSphere(v: boolean) { hideOuterSphere = v; }
 // Sets how faded the outer sphere is.
 export function setOuterSphereFade(v: number) { glassOuterUniforms.uFade.value = v; }
 
-const fadeScene  = new THREE.Scene();
+const fadeScene = new THREE.Scene();
 fadeScene.add(new THREE.Mesh(
   new THREE.PlaneGeometry(2, 2),
   new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.015, depthWrite: false })
@@ -259,7 +259,7 @@ export function triggerBeat(strength: number) {
   beatIntensity = strength;
 }
 
-let rippleIdx    = 0;
+let rippleIdx = 0;
 let chorusTarget = 0;
 
 // Sets how far through a beat pulse the glass is, from zero to one.
@@ -278,7 +278,7 @@ export function fireDownbeat(strength: number, dir: THREE.Vector3) {
   if (getGlassFx() === 'off') return;
   const slot = rippleIdx % 4;
   rippleIdx++;
-  sharedGlassUniforms.uRippleTime.value[slot]     = elapsed;
+  sharedGlassUniforms.uRippleTime.value[slot] = elapsed;
   sharedGlassUniforms.uRippleStrength.value[slot] = strength;
   sharedGlassUniforms.uRippleDir.value[slot].copy(dir);
 }
@@ -291,9 +291,9 @@ let detailHigh = true;
 
 // Redraws the reflection cube right now. Call it after removing reflected objects.
 export function flushCubemapNow() {
-  sphereMesh.visible      = false;
+  sphereMesh.visible = false;
   largerSphereMesh.visible = false;
-  auroraMesh.visible      = false;
+  auroraMesh.visible = false;
   activeCubeCamera.update(renderer, scene);
   if (outerSphereActive && !menuMode && !hideOuterSphere) largerSphereMesh.visible = true;
   auroraMesh.visible = true;
@@ -302,23 +302,23 @@ export function flushCubemapNow() {
 // Switches between low and high detail by picking cube maps and shader settings.
 export function applyDetailMode(mode: DetailMode) {
   if (mode === 'low') {
-    detailHigh          = false;
-    activeCubeCamera    = cubeCameraLow;
-    activeCubeInterval  = 8;
-    activeRenderTarget  = renderTargetHalf;
+    detailHigh = false;
+    activeCubeCamera = cubeCameraLow;
+    activeCubeInterval = 8;
+    activeRenderTarget = renderTargetHalf;
     // Both spheres share the small cube map so there is no extra outer pass.
-    glassInnerUniforms.uEnvMap.value      = cubeRenderTargetLow.texture;
-    glassOuterUniforms.uEnvMap.value      = cubeRenderTargetLow.texture;
+    glassInnerUniforms.uEnvMap.value = cubeRenderTargetLow.texture;
+    glassOuterUniforms.uEnvMap.value = cubeRenderTargetLow.texture;
     glassInnerUniforms.uDetailLevel.value = 0.0;
     glassOuterUniforms.uDetailLevel.value = 0.0;
     outerSphereActive = OUTER_SPHERE;
   } else {
-    detailHigh          = true;
-    activeCubeCamera    = cubeCamera;
-    activeCubeInterval  = CUBE_INTERVAL;
-    activeRenderTarget  = renderTarget;
-    glassInnerUniforms.uEnvMap.value      = cubeRenderTarget.texture;
-    glassOuterUniforms.uEnvMap.value      = cubeLargeRenderTarget.texture;
+    detailHigh = true;
+    activeCubeCamera = cubeCamera;
+    activeCubeInterval = CUBE_INTERVAL;
+    activeRenderTarget = renderTarget;
+    glassInnerUniforms.uEnvMap.value = cubeRenderTarget.texture;
+    glassOuterUniforms.uEnvMap.value = cubeLargeRenderTarget.texture;
     glassInnerUniforms.uDetailLevel.value = 1.0;
     glassOuterUniforms.uDetailLevel.value = 1.0;
     outerSphereActive = OUTER_SPHERE;
@@ -329,7 +329,7 @@ export function applyDetailMode(mode: DetailMode) {
 applyDetailMode(getDetailMode());
 
 const clock = new THREE.Clock();
-let elapsed  = 0;
+let elapsed = 0;
 let cubeFrame = 0;
 
 // The main render loop. Runs every frame to update and draw the whole scene.
@@ -344,8 +344,8 @@ export function animate() {
 
   if (cylinderMesh.visible) {
     // Rotate the cylinder so the first card faces the camera when the angle is zero.
-    cylinderMesh.rotation.y     = -Math.PI / cylSegments + menuState.cylAngle;
-    sphereMesh.rotation.y       = menuState.cylAngle;
+    cylinderMesh.rotation.y = -Math.PI / cylSegments + menuState.cylAngle;
+    sphereMesh.rotation.y = menuState.cylAngle;
     largerSphereMesh.rotation.y = menuState.cylAngle;
   }
 
@@ -370,7 +370,7 @@ export function animate() {
   cubeFrame++;
 
   // Reflection passes. Hide costly objects that do not need to be reflected.
-  sphereMesh.visible  = false;
+  sphereMesh.visible = false;
   largerSphereMesh.visible = false;
   auroraMesh.visible  = false; // aurora is the main perf cost: skip 12 face renders
 

@@ -484,7 +484,12 @@ export function mountSphereSongSelect(
     if (item.kind === 'song') {
       const { name, artist } = getSongNames(item.data);
       const color = COLORS[songColorIdx++ % COLORS.length];
-      const thumbnail = proceduralThumbnail(item.data.url);
+      // Use the song's cover art when provided, otherwise fall back to the
+      // procedural card art. This single source feeds the card background, the
+      // converge loader particles, and the menu reflection.
+      const thumbnail = item.data.image
+        ? import.meta.env.BASE_URL + item.data.image
+        : proceduralThumbnail(item.data.url);
       card.className     = 'sss-card';
       card.style.cssText = `--c:${color}; transform:${baseTransform};`;
       card.innerHTML     = `

@@ -82,33 +82,33 @@ const spinHeadIndices   = new Uint32Array(SPIN_HEAD_COUNT);
 const spinChipIndices   = new Uint32Array(SPIN_CHIP_COUNT);
 const glassHeadIndices  = new Uint32Array(GLASS_HEAD_COUNT);
 const glassChipIndices  = new Uint32Array(GLASS_CHIP_COUNT);
-for (let i = 0; i < LABEL_COUNT;       i++) labelIndices[i]      = i;
-for (let i = 0; i < OUTLINE_COUNT;     i++) outlineIndices[i]    = LABEL_COUNT + i;
-for (let i = 0; i < FILL_COUNT;        i++) fillIndices[i]       = LABEL_COUNT + OUTLINE_COUNT + i;
-for (let i = 0; i < LANG_HEAD_COUNT;   i++) langHeadIndices[i]   = LANG_HEAD_BASE + i;
-for (let i = 0; i < LANG_CHIP_COUNT;   i++) langChipIndices[i]   = LANG_CHIP_BASE + i;
+for (let i = 0; i < LABEL_COUNT; i++) labelIndices[i] = i;
+for (let i = 0; i < OUTLINE_COUNT; i++) outlineIndices[i] = LABEL_COUNT + i;
+for (let i = 0; i < FILL_COUNT; i++) fillIndices[i] = LABEL_COUNT + OUTLINE_COUNT + i;
+for (let i = 0; i < LANG_HEAD_COUNT; i++) langHeadIndices[i] = LANG_HEAD_BASE + i;
+for (let i = 0; i < LANG_CHIP_COUNT; i++) langChipIndices[i] = LANG_CHIP_BASE + i;
 for (let i = 0; i < DETAIL_HEAD_COUNT; i++) detailHeadIndices[i] = DETAIL_HEAD_BASE + i;
 for (let i = 0; i < DETAIL_CHIP_COUNT; i++) detailChipIndices[i] = DETAIL_CHIP_BASE + i;
-for (let i = 0; i < SPIN_HEAD_COUNT;   i++) spinHeadIndices[i]   = SPIN_HEAD_BASE + i;
-for (let i = 0; i < SPIN_CHIP_COUNT;   i++) spinChipIndices[i]   = SPIN_CHIP_BASE + i;
-for (let i = 0; i < GLASS_HEAD_COUNT;  i++) glassHeadIndices[i]  = GLASS_HEAD_BASE + i;
-for (let i = 0; i < GLASS_CHIP_COUNT;  i++) glassChipIndices[i]  = GLASS_CHIP_BASE + i;
+for (let i = 0; i < SPIN_HEAD_COUNT; i++) spinHeadIndices[i] = SPIN_HEAD_BASE + i;
+for (let i = 0; i < SPIN_CHIP_COUNT; i++) spinChipIndices[i] = SPIN_CHIP_BASE + i;
+for (let i = 0; i < GLASS_HEAD_COUNT; i++) glassHeadIndices[i] = GLASS_HEAD_BASE + i;
+for (let i = 0; i < GLASS_CHIP_COUNT; i++) glassChipIndices[i] = GLASS_CHIP_BASE + i;
 
 // Creates the glass material used for the settings text.
 function makeGlassMat(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
-    vertexShader:   lyricGlassVert,
+    vertexShader: lyricGlassVert,
     fragmentShader: lyricGlassFrag,
     uniforms: {
-      uCameraPos:     glassInnerUniforms.uCameraPos,
-      uEnvMap:        glassInnerUniforms.uEnvMap,
+      uCameraPos: glassInnerUniforms.uCameraPos,
+      uEnvMap: glassInnerUniforms.uEnvMap,
       uBeatIntensity: glassInnerUniforms.uBeatIntensity,
-      uOpacity:       { value: 1.0 },
-      uFill:          { value: 1.0 },
+      uOpacity: { value: 1.0 },
+      uFill: { value: 1.0 },
     },
     transparent: true,
     depthWrite:  false,
-    blending:    THREE.AdditiveBlending,
+    blending: THREE.AdditiveBlending,
     renderOrder: 2,
   });
 }

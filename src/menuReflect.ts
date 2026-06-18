@@ -10,15 +10,15 @@ const proxyGroup = new THREE.Group();
 menuReflectScene.add(proxyGroup);
 
 interface Tile {
-  texture:    THREE.CanvasTexture;
-  kind:       'song' | 'util';
+  texture: THREE.CanvasTexture;
+  kind: 'song' | 'util';
   drawStatic: () => void;
   drawLoading?: (pcv: CanvasImageSource) => void;
 }
 let tiles: Tile[] = [];
 
 let loadingTile: Tile | null = null;
-let loadingCv:   CanvasImageSource | null = null;
+let loadingCv: CanvasImageSource | null = null;
 
 // Makes a blank canvas and matching texture sized to one card.
 function makeCanvasTile(aspect: number) {
@@ -161,7 +161,9 @@ export function initMenuReflect(items: WheelItem[]) {
       const loadImg = new Image();
       loadImg.crossOrigin = 'anonymous';
       loadImg.onload = () => { img = loadImg; if (loadingTile !== tile) { drawStatic(); tex.needsUpdate = true; } };
-      loadImg.src = proceduralThumbnail(item.data.url);
+      loadImg.src = item.data.image
+        ? import.meta.env.BASE_URL + item.data.image
+        : proceduralThumbnail(item.data.url);
     } else {
       const kind = item.kind;
       tile = { texture: tex, kind: 'util', drawStatic: () => drawUtil(ctx, W, H, kind) };
@@ -190,7 +192,7 @@ export function setMenuReflectLoading(index: number, cv: CanvasImageSource | nul
     prev.texture.needsUpdate = true;
   }
   loadingTile = next;
-  loadingCv   = next ? cv : null;
+  loadingCv = next ? cv : null;
 }
 
 // Spins the reflection with the wheel and redraws any loading card.

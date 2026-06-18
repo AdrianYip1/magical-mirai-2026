@@ -7,7 +7,7 @@ import { getVolume } from './volume';
 type PreviewMeta = { src: string; chorusMs: number };
 
 const CACHE_KEY = 'holofragment.preview.v1';
-const FADE_MS        = 180;
+const FADE_MS = 180;
 const LOOP_WINDOW_S  = 15;
 
 // Reads the saved song links from local storage.
@@ -21,19 +21,19 @@ function saveCache(c: Record<string, PreviewMeta>) {
   try { localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch {}
 }
 
-const cache    = loadCache();
+const cache = loadCache();
 const elements = new Map<string, HTMLAudioElement>();
 
-let current  = '';
-let fadeRaf  = 0;
-let fadeFor  = '';
+let current = '';
+let fadeRaf = 0;
+let fadeFor = '';
 
 // Creates an audio element for a preview and seeks it to the chorus.
 function makeAudio(meta: PreviewMeta): HTMLAudioElement {
   const a = new Audio();
   a.preload = 'auto';
-  a.volume  = 0;
-  a.src     = meta.src;
+  a.volume = 0;
+  a.src = meta.src;
 
   const start = meta.chorusMs / 1000;
   const seek  = () => { try { a.currentTime = start; } catch {} };
