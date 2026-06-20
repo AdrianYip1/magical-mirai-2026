@@ -3,7 +3,7 @@ export type Lang = 'en' | 'ja';
 
 let _lang: Lang = (() => {
   const v = localStorage.getItem(LANG_KEY);
-  return v === 'ja' ? 'ja' : 'en';
+  return v === 'en' ? 'en' : 'ja';
 })();
 
 // Returns the current interface language.

@@ -25,6 +25,8 @@ vec3 curl(vec3 p) {
 
 #else
 
+// hash instead of permutation table 
+
 vec3 hash3(vec3 p) {
     p = vec3(
         dot(p, vec3(127.1, 311.7,  74.7)),

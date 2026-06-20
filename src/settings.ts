@@ -18,7 +18,8 @@ export type DetailMode = 'low' | 'high';
 
 let _detail: DetailMode = (() => {
   const saved = localStorage.getItem(DETAIL_KEY);
-  return saved === 'low' ? 'low' : 'high';
+  if (saved === 'low' || saved === 'high') return saved;
+  return (navigator.maxTouchPoints > 1 || window.innerWidth < 768) ? 'low' : 'high';
 })();
 
 // Returns the chosen graphics detail level.

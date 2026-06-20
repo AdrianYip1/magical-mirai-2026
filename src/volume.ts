@@ -2,7 +2,7 @@ const KEY = 'holofragment.volume';
 
 let _vol = (() => {
   const n = parseFloat(localStorage.getItem(KEY) ?? '');
-  return isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.8;
+  return isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.5;
 })();
 
 // Returns the current playback volume from zero to one.

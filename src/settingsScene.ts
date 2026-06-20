@@ -82,6 +82,7 @@ const spinHeadIndices   = new Uint32Array(SPIN_HEAD_COUNT);
 const spinChipIndices   = new Uint32Array(SPIN_CHIP_COUNT);
 const glassHeadIndices  = new Uint32Array(GLASS_HEAD_COUNT);
 const glassChipIndices  = new Uint32Array(GLASS_CHIP_COUNT);
+
 for (let i = 0; i < LABEL_COUNT; i++) labelIndices[i] = i;
 for (let i = 0; i < OUTLINE_COUNT; i++) outlineIndices[i] = LABEL_COUNT + i;
 for (let i = 0; i < FILL_COUNT; i++) fillIndices[i] = LABEL_COUNT + OUTLINE_COUNT + i;
@@ -482,7 +483,7 @@ function rebuildGlassFxSectionMesh(font: NonNullable<ReturnType<typeof getFont>>
   if (glassFxSectionMesh) { scene.remove(glassFxSectionMesh); (glassFxSectionMesh.material as THREE.ShaderMaterial).dispose(); glassFxSectionMesh = null; }
   if (glassFxSectionGeo)  { glassFxSectionGeo.dispose(); glassFxSectionGeo = null; }
 
-  const text = getLanguage() === 'ja' ? 'ガラスFX' : 'GLASS FX';
+  const text = getLanguage() === 'ja' ? 'ガラスパルス' : 'GLASS PULSE';
   glassFxSectionGeo = new TextGeometry(text, { font, size: GLASS_SECTION_SIZE, depth: 0.30, curveSegments: 4 });
   glassFxSectionGeo.computeBoundingBox();
   const bb = glassFxSectionGeo.boundingBox!;
