@@ -96,6 +96,7 @@ let loadStart  = 0; // perf timestamp of the current load (for timing logs)
 let desired: { song: SongOption; cb: () => void } | null = null;
 
 let backGen = 0;
+let creditsScrollCleanup: (() => void) | null = null;
 
 let focusedUrl:     string | null = null;
 let meshesBuiltUrl: string | null = null;
@@ -413,7 +414,20 @@ function remountMenu(returnIndex = songs.length, hidden = false): ReturnType<typ
         setFadeRate(0);
         const fovHalf = (camera.fov / 2) * (Math.PI / 180);
         const halfH = Math.tan(fovHalf) * camZ * 0.62;
-        const textScale = halfH / (creditLines.length * 1.3);
+        const textScale = 1.5 * halfH / (creditLines.length * 1.3);
+        const LINE_HEIGHT = 2.6 * textScale;
+        const totalTextHeight = creditLines.length * LINE_HEIGHT;
+        const maxScroll = Math.max(0, totalTextHeight / 2 - halfH);
+        let creditScrollY = 0;
+        const onCreditWheel = (e: WheelEvent) => {
+          e.preventDefault();
+          creditScrollY = Math.max(-maxScroll, Math.min(maxScroll, creditScrollY - e.deltaY * 0.04));
+          camera.position.y = creditScrollY;
+          controls.target.y = creditScrollY;
+          camera.lookAt(controls.target);
+        };
+        canvas.addEventListener('wheel', onCreditWheel, { passive: false });
+        creditsScrollCleanup = () => canvas.removeEventListener('wheel', onCreditWheel);
         flyCamera(0, camZ, 0, 2000, () => displayStaticText(creditLines, textScale));
       }
     },
@@ -484,7 +498,7 @@ function triggerBack() {
     setSettingsMode(false);
     leaveSettings(camera, controls);
   } else {
-    if (wasUtility === 'credits') setSettingsMode(false);
+    if (wasUtility === 'credits') { setSettingsMode(false); creditsScrollCleanup?.(); creditsScrollCleanup = null; }
     clearStaticText(); setFadeRate(0.25);
     if (wasInPlayback) {
       setSongMode(false);
