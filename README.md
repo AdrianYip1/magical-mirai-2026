@@ -23,8 +23,8 @@ The particles are shaped by each performance, so no two moments ever repeat. Ple
 
 ---
 
-**Try the app!**: magical-mirai-2026-inky.vercel.app
-**Demo video** (Shutter Chance): https://youtu.be/rRq49zvPCic
+**[Try the app here!](https://magical-mirai-2026-inky.vercel.app)**<br>
+**[Demo video (Shutter Chance)](https://youtu.be/rRq49zvPCic)**
 
 <details>
 <summary><strong> Images </strong></summary>
