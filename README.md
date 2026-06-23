@@ -4,7 +4,7 @@
 
 ## About
 
-HOLOFRAGMENT - Hatsune Miku is a projection of light, and so are the words she sings.
+**HOLOFRAGMENT - Hatsune Miku is a projection of light, and so are the words she sings.**
 
 A voice only lasts as long as it's sung, and for that moment, it's hers alone. On stage, Miku is a hologram, a singer made of pure light. HOLOFRAGMENT treats her words the same way. 
 
@@ -13,7 +13,7 @@ Each song opens as a galaxy of tens of thousands of light particles drifting thr
 The particles are shaped by each performance, so no two moments ever repeat. Please enjoy this small, private concert of light that rebuilds her words in front of you.
 
 
-HOLOFRAGMENT — 初音ミクは光の投影。そして彼女が歌う言葉もまた、光でできている。
+**HOLOFRAGMENT — 初音ミクは光の投影。そして彼女が歌う言葉もまた、光でできている。**
 
 歌声は、歌われているあいだだけ存在する。そしてその一瞬だけ、それは彼女だけのもの。ステージで、ミクはホログラム、純粋な光でできた歌姫です。HOLOFRAGMENT は、その言葉を同じものとして描きます。
 
@@ -31,7 +31,7 @@ HOLOFRAGMENT — 初音ミクは光の投影。そして彼女が歌う言葉も
 ### Main Menu
 ![Main Menu](public/assets/screenshots/main%20menu.png)
 
-### Song
+### Playing a Song
 ![Song](public/assets/screenshots/song.png)
 
 ### Settings
