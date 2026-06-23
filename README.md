@@ -49,7 +49,7 @@ The particles are shaped by each performance, so no two moments ever repeat. Ple
 
 2. Use your cursor or swipe (on mobile) to navigate to a song.
 
-When a song is hovered on in the main menu, a loading animation will play and the song's preview will start, indicating that it is ready to play.
+When a song is hovered on in the main menu, a loading animation will play and the song's preview will start, indicating that it is ready to play (where you would click into the song).
 If you click into a song before the loading animation completes, you may need to wait until the song fully loads before it begins.
 
 ### Note
